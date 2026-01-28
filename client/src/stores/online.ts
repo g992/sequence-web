@@ -7,7 +7,16 @@ import type {
   RoomType,
   RematchState,
 } from '@/types/online'
+import type { BoardType } from '@/types'
 import * as api from '@/services/api'
+import {
+  wsService,
+  type RoomUpdatedEvent,
+  type PlayerJoinedEvent,
+  type PlayerLeftEvent,
+  type RematchVoteEvent,
+  type RematchCancelledEvent,
+} from '@/services/websocket'
 
 export const useOnlineStore = defineStore('online', () => {
   // Connection state
@@ -158,6 +167,10 @@ export const useOnlineStore = defineStore('online', () => {
         playerId.value = response.data.playerId
         playerName.value = name
         isAuthenticated.value = true
+
+        // Connect WebSocket
+        connectWebSocket()
+
         return true
       }
 
@@ -169,9 +182,65 @@ export const useOnlineStore = defineStore('online', () => {
     }
   }
 
+  // WebSocket connection
+  function connectWebSocket() {
+    if (!serverUrl.value || !sessionId.value) return
+
+    wsService.connect(serverUrl.value, sessionId.value)
+
+    // Handle room updates
+    wsService.on('room_updated', (data) => {
+      const event = data as RoomUpdatedEvent
+      if (currentRoom.value && event.room.id === currentRoom.value.id) {
+        currentRoom.value = event.room
+      }
+    })
+
+    // Handle player joined
+    wsService.on('player_joined', (data) => {
+      const event = data as PlayerJoinedEvent
+      if (currentRoom.value && !currentRoom.value.players.find(p => p.id === event.player.id)) {
+        currentRoom.value.players.push(event.player)
+      }
+    })
+
+    // Handle player left
+    wsService.on('player_left', (data) => {
+      const event = data as PlayerLeftEvent
+      if (currentRoom.value) {
+        currentRoom.value.players = currentRoom.value.players.filter(p => p.id !== event.playerId)
+        if (event.newHostId) {
+          currentRoom.value.hostId = event.newHostId
+          const newHost = currentRoom.value.players.find(p => p.id === event.newHostId)
+          if (newHost) {
+            newHost.isHost = true
+          }
+        }
+      }
+    })
+
+    // Handle rematch vote
+    wsService.on('rematch_vote', (data) => {
+      const event = data as RematchVoteEvent
+      rematchState.value = event.rematchState
+    })
+
+    // Handle rematch cancelled
+    wsService.on('rematch_cancelled', (_data) => {
+      rematchState.value = null
+    })
+  }
+
+  function disconnectWebSocket() {
+    wsService.disconnect()
+  }
+
   // Leave server
   async function leaveServer() {
-    await api.leaveServer()
+    disconnectWebSocket()
+    if (serverUrl.value) {
+      await api.leaveServer(serverUrl.value)
+    }
     sessionId.value = ''
     playerId.value = ''
     playerName.value = ''
@@ -214,6 +283,7 @@ export const useOnlineStore = defineStore('online', () => {
   async function createRoom(
     name: string,
     type: RoomType,
+    boardType: BoardType,
     password?: string,
   ): Promise<boolean> {
     clearError()
@@ -224,7 +294,7 @@ export const useOnlineStore = defineStore('online', () => {
     }
 
     try {
-      const response = await api.createRoom(serverUrl.value, name, type, password)
+      const response = await api.createRoom(serverUrl.value, name, type, boardType, password)
 
       if (response.success && response.data) {
         currentRoom.value = response.data.room
@@ -421,6 +491,7 @@ export const useOnlineStore = defineStore('online', () => {
 
   // Reset store
   function reset() {
+    disconnectWebSocket()
     connectionStatus.value = 'disconnected'
     serverName.value = ''
     serverVersion.value = ''
@@ -437,6 +508,7 @@ export const useOnlineStore = defineStore('online', () => {
 
   // Disconnect from server
   function disconnect() {
+    disconnectWebSocket()
     reset()
     // Keep serverUrl for reconnection
   }

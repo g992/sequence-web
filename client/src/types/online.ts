@@ -1,4 +1,5 @@
 // Online multiplayer types
+import type { BoardType } from './index'
 
 // Room types
 export type RoomType = '1v1' | '2v2'
@@ -21,6 +22,7 @@ export interface RoomInfo {
   id: string
   name: string
   type: RoomType
+  boardType: BoardType
   hasPassword: boolean
   status: RoomStatus
   players: number
@@ -33,6 +35,7 @@ export interface Room {
   id: string
   name: string
   type: RoomType
+  boardType: BoardType
   hasPassword: boolean
   status: RoomStatus
   players: RoomPlayer[]

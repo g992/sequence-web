@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useOnlineStore } from '@/stores/online'
 import type { RoomType } from '@/types/online'
+import type { BoardType } from '@/types'
+import { getBoardTypeLabel, getBoardTypeDescription } from '@/data/board'
 
 const router = useRouter()
 const online = useOnlineStore()
@@ -11,12 +13,15 @@ const online = useOnlineStore()
 const showCreateRoom = ref(false)
 const newRoomName = ref('')
 const newRoomType = ref<RoomType>('1v1')
+const newBoardType = ref<BoardType>('classic')
 const newRoomPassword = ref('')
 const isCreating = ref(false)
 const joinPasswordInput = ref('')
 const joiningRoomId = ref<string | null>(null)
 const showPasswordDialog = ref(false)
 const passwordRoomId = ref<string | null>(null)
+
+const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
 
 // Refresh interval
 let refreshInterval: ReturnType<typeof setInterval> | null = null
@@ -51,6 +56,7 @@ function handleBackToMenu() {
 function openCreateRoom() {
   newRoomName.value = `Комната ${online.playerName}`
   newRoomType.value = '1v1'
+  newBoardType.value = 'classic'
   newRoomPassword.value = ''
   showCreateRoom.value = true
 }
@@ -67,6 +73,7 @@ async function handleCreateRoom() {
   const success = await online.createRoom(
     newRoomName.value.trim(),
     newRoomType.value,
+    newBoardType.value,
     newRoomPassword.value || undefined,
   )
 
@@ -193,6 +200,7 @@ function getStatusLabel(status: string): string {
             </div>
             <div class="room-info">
               <span class="room-type">{{ getRoomTypeLabel(room.type) }}</span>
+              <span class="room-board">{{ getBoardTypeLabel(room.boardType) }}</span>
               <span class="room-host">Хост: {{ room.hostName }}</span>
             </div>
           </div>
@@ -248,6 +256,21 @@ function getStatusLabel(status: string): string {
               @click="newRoomType = '2v2'"
             >
               2 на 2
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Тип поля</label>
+          <div class="board-selector">
+            <button
+              v-for="boardType in boardTypes"
+              :key="boardType"
+              :class="['board-type-btn', { active: newBoardType === boardType }]"
+              @click="newBoardType = boardType"
+            >
+              <span class="board-type-name">{{ getBoardTypeLabel(boardType) }}</span>
+              <span class="board-type-desc">{{ getBoardTypeDescription(boardType) }}</span>
             </button>
           </div>
         </div>
@@ -524,6 +547,13 @@ function getStatusLabel(status: string): string {
   border-radius: 4px;
 }
 
+.room-board {
+  background: #34495e;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #95a5a6;
+}
+
 .room-status {
   display: flex;
   flex-direction: column;
@@ -664,6 +694,45 @@ function getStatusLabel(status: string): string {
   background: #3498db;
   border-color: #3498db;
   color: white;
+}
+
+.board-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-type-btn {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  background: #0f0f1a;
+  border: 1px solid #2c3e50;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.board-type-btn:hover {
+  border-color: #3498db;
+}
+
+.board-type-btn.active {
+  background: rgba(52, 152, 219, 0.15);
+  border-color: #3498db;
+}
+
+.board-type-name {
+  color: #ecf0f1;
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.board-type-desc {
+  color: #7f8c8d;
+  font-size: 11px;
 }
 
 .modal-actions {

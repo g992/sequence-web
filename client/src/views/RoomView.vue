@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useOnlineStore } from '@/stores/online'
 import { useGameStore } from '@/stores/game'
+import { getBoardTypeLabel } from '@/data/board'
 
 const router = useRouter()
 const online = useOnlineStore()
@@ -106,7 +107,10 @@ function getPlayerStatusClass(isReady: boolean, isHost: boolean): string {
       </button>
       <div class="header-info">
         <h1>{{ room?.name || 'Комната' }}</h1>
-        <span class="room-type">{{ room?.type === '2v2' ? 'Команды 2 на 2' : '1 на 1' }}</span>
+        <div class="room-info-tags">
+          <span class="room-type">{{ room?.type === '2v2' ? 'Команды 2 на 2' : '1 на 1' }}</span>
+          <span class="room-board-type">{{ room?.boardType ? getBoardTypeLabel(room.boardType) : '' }}</span>
+        </div>
       </div>
       <div class="room-status-badge" :class="room?.status">
         {{ room?.status === 'waiting' ? 'Ожидание' : 'В игре' }}
@@ -309,9 +313,23 @@ function getPlayerStatusClass(isReady: boolean, isHost: boolean): string {
   color: #ecf0f1;
 }
 
+.room-info-tags {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .room-type {
   font-size: 12px;
   color: #7f8c8d;
+}
+
+.room-board-type {
+  font-size: 11px;
+  color: #95a5a6;
+  background: #2c3e50;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .room-status-badge {

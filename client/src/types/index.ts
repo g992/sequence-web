@@ -4,6 +4,9 @@ export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs'
 // Card ranks (T = 10)
 export type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'T' | 'J' | 'Q' | 'K'
 
+// Board types
+export type BoardType = 'classic' | 'alternative' | 'advanced'
+
 // Card representation
 export interface Card {
   suit: Suit
@@ -72,6 +75,7 @@ export interface GameState {
   deck: DeckState
   hands: Record<string, Card[]>
   board: BoardCell[][]
+  boardType: BoardType
   sequences: Sequence[]
   currentTurnPlayerId: string | null
   winnerId: string | null

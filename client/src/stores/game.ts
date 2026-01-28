@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { GamePhase, Player, Team, Card, BoardCell, Sequence, TeamColor } from '@/types'
+import type { GamePhase, Player, Team, Card, BoardCell, Sequence, TeamColor, BoardType } from '@/types'
 import { isOneEyedJack, isTwoEyedJack } from '@/types'
 import { createBoard, findCellsForCard, isDeadCard, getEmptyCells, getRemovableChips } from '@/data/board'
 import { createShuffledDeck, drawCards, getHandSize, generateSeed } from '@/data/deck'
@@ -22,6 +22,7 @@ interface SavedGameState {
   players: Player[]
   teams: Team[]
   board: BoardCell[][]
+  boardType: BoardType
   sequences: Sequence[]
   currentTurnPlayerId: string | null
   winnerId: string | null
@@ -41,6 +42,7 @@ export const useGameStore = defineStore('game', () => {
   const players = ref<Player[]>([])
   const teams = ref<Team[]>([])
   const board = ref<BoardCell[][]>([])
+  const boardType = ref<BoardType>('classic')
   const sequences = ref<Sequence[]>([])
   const currentTurnPlayerId = ref<string | null>(null)
   const winnerId = ref<string | null>(null)
@@ -124,6 +126,7 @@ export const useGameStore = defineStore('game', () => {
       players: players.value,
       teams: teams.value,
       board: board.value,
+      boardType: boardType.value,
       sequences: sequences.value,
       currentTurnPlayerId: currentTurnPlayerId.value,
       winnerId: winnerId.value,
@@ -152,6 +155,7 @@ export const useGameStore = defineStore('game', () => {
       players.value = state.players
       teams.value = state.teams
       board.value = state.board
+      boardType.value = state.boardType || 'classic'
       sequences.value = state.sequences
       currentTurnPlayerId.value = state.currentTurnPlayerId
       winnerId.value = state.winnerId
@@ -184,11 +188,12 @@ export const useGameStore = defineStore('game', () => {
   }
 
   // Initialize AI game
-  function initAIGame(difficulty: AIDifficulty) {
+  function initAIGame(difficulty: AIDifficulty, selectedBoardType: BoardType = 'classic') {
     aiDifficulty.value = difficulty
     aiTurnCount.value = 0
     phase.value = 'lobby'
-    board.value = createBoard()
+    boardType.value = selectedBoardType
+    board.value = createBoard(selectedBoardType)
     sequences.value = []
     winnerId.value = null
     lastPlayedCards.value = []
@@ -459,6 +464,7 @@ export const useGameStore = defineStore('game', () => {
 
   function resetGame() {
     phase.value = 'lobby'
+    boardType.value = 'classic'
     board.value = createBoard()
     sequences.value = []
     hands.value = {}
@@ -492,6 +498,7 @@ export const useGameStore = defineStore('game', () => {
     players,
     teams,
     board,
+    boardType,
     sequences,
     currentTurnPlayerId,
     winnerId,

@@ -1,8 +1,6 @@
-import type { BoardCard, BoardCell, Card, Suit, Rank, BoardType } from '@/types'
+import type { BoardCard, BoardCell, Card, Suit, Rank, BoardType } from '../types.js'
 
 // Classic Sequence board layout (10x10)
-// Each card appears exactly twice on the board (except Jacks which are not on board)
-// Corners are free spaces that count as wild for any sequence
 const BOARD_LAYOUT_CLASSIC: string[][] = [
   ['XX', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'XX'],
   ['6C', '5C', '4C', '3C', '2C', 'AH', 'KH', 'QH', 'TH', 'TS'],
@@ -16,7 +14,7 @@ const BOARD_LAYOUT_CLASSIC: string[][] = [
   ['XX', 'AD', 'KD', 'QD', 'TD', '9D', '8D', '7D', '2H', 'XX'],
 ]
 
-// Alternative board layout - different card arrangement
+// Alternative board layout
 const BOARD_LAYOUT_ALTERNATIVE: string[][] = [
   ['XX', 'TC', '9C', '8C', '7C', '7H', '8H', '9H', 'TH', 'XX'],
   ['TD', '9D', '6C', '5C', '4C', '4H', '5H', '6H', 'AH', 'KS'],
@@ -30,7 +28,7 @@ const BOARD_LAYOUT_ALTERNATIVE: string[][] = [
   ['XX', 'AD', 'KD', 'QD', 'TD', '9D', '8D', '7D', '2H', 'XX'],
 ]
 
-// Advanced board layout - more challenging arrangement
+// Advanced board layout
 const BOARD_LAYOUT_ADVANCED: string[][] = [
   ['XX', 'AH', 'KH', 'QH', 'TH', 'TC', 'QC', 'KC', 'AC', 'XX'],
   ['2D', '9H', '8H', '7H', '6H', '6C', '7C', '8C', '9C', '2S'],
@@ -88,7 +86,6 @@ export function createBoard(boardType: BoardType = 'classic'): BoardCell[][] {
   return board
 }
 
-// Get all cells that match a card (for highlighting playable positions)
 export function findCellsForCard(board: BoardCell[][], card: Card): BoardCell[] {
   const cells: BoardCell[] = []
 
@@ -106,13 +103,11 @@ export function findCellsForCard(board: BoardCell[][], card: Card): BoardCell[] 
   return cells
 }
 
-// Check if a card is "dead" (both positions are occupied)
 export function isDeadCard(board: BoardCell[][], card: Card): boolean {
   const cells = findCellsForCard(board, card)
   return cells.every((cell) => cell.chip !== null)
 }
 
-// Get all empty cells (for two-eyed jack)
 export function getEmptyCells(board: BoardCell[][]): BoardCell[] {
   const cells: BoardCell[] = []
 
@@ -128,7 +123,6 @@ export function getEmptyCells(board: BoardCell[][]): BoardCell[] {
   return cells
 }
 
-// Get all opponent chips that can be removed (for one-eyed jack)
 export function getRemovableChips(
   board: BoardCell[][],
   opponentColors: string[],
@@ -150,25 +144,3 @@ export function getRemovableChips(
 
   return cells
 }
-
-// Get board layout names for UI
-export function getBoardTypeLabel(boardType: BoardType): string {
-  const labels: Record<BoardType, string> = {
-    classic: 'Классическая',
-    alternative: 'Альтернативная',
-    advanced: 'Продвинутая',
-  }
-  return labels[boardType]
-}
-
-export function getBoardTypeDescription(boardType: BoardType): string {
-  const descriptions: Record<BoardType, string> = {
-    classic: 'Стандартное расположение карт',
-    alternative: 'Другое расположение карт',
-    advanced: 'Сложное расположение карт',
-  }
-  return descriptions[boardType]
-}
-
-// Export for debugging
-export { BOARD_LAYOUTS }

@@ -1,8 +1,6 @@
 /**
  * API Service for Sequence Web multiplayer
- *
- * Currently contains stub implementations that simulate server responses.
- * Replace with real API calls when backend is ready.
+ * Real implementation with HTTP requests to backend server
  */
 
 import type {
@@ -16,24 +14,14 @@ import type {
   StartGameResponse,
   RematchResponse,
   RoomType,
-  RoomInfo,
-  Room,
-  RematchState,
 } from '@/types/online'
+import type { BoardType } from '@/types'
 
 // Storage keys
 const STORAGE_SERVER_URL = 'sequence-server-url'
 const STORAGE_SESSION_ID = 'sequence-session-id'
 const STORAGE_PLAYER_ID = 'sequence-player-id'
 const STORAGE_PLAYER_NAME = 'sequence-player-name'
-
-// Simulated delay for stubs (ms)
-const STUB_DELAY = 300
-
-// Helper to simulate async delay
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 // Helper to get stored server URL
 export function getStoredServerUrl(): string | null {
@@ -71,392 +59,214 @@ export function clearSession(): void {
   localStorage.removeItem(STORAGE_PLAYER_NAME)
 }
 
-/**
- * Ping server to check availability
- * STUB: Always returns success after delay
- */
-export async function pingServer(serverUrl: string): Promise<ApiResponse<PingResponse>> {
-  await delay(STUB_DELAY)
+// Get session ID for auth header
+function getSessionId(): string | null {
+  return localStorage.getItem(STORAGE_SESSION_ID)
+}
 
-  // STUB: Simulate server response
-  // TODO: Replace with actual API call
-  // return await fetch(`${serverUrl}/ping`).then(r => r.json())
+// Build API URL
+function apiUrl(serverUrl: string, path: string): string {
+  return `${serverUrl}/api/v1${path}`
+}
 
-  return {
-    success: true,
-    data: {
-      ok: true,
-      serverName: 'Sequence Server (Stub)',
-      version: '0.1.0',
-      timestamp: Date.now(),
-    },
+// Generic fetch wrapper
+async function apiFetch<T>(
+  serverUrl: string,
+  path: string,
+  options: RequestInit = {},
+): Promise<ApiResponse<T>> {
+  try {
+    const sessionId = getSessionId()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    }
+
+    if (sessionId) {
+      headers['Authorization'] = `Bearer ${sessionId}`
+    }
+
+    const response = await fetch(apiUrl(serverUrl, path), {
+      ...options,
+      headers,
+    })
+
+    const data = await response.json()
+    return data
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Network error',
+    }
   }
 }
 
 /**
+ * Ping server to check availability
+ */
+export async function pingServer(serverUrl: string): Promise<ApiResponse<PingResponse>> {
+  return apiFetch<PingResponse>(serverUrl, '/ping')
+}
+
+/**
  * Check if player name is available
- * STUB: Always returns available unless name is "admin" or "test"
  */
 export async function checkName(
   serverUrl: string,
   name: string,
 ): Promise<ApiResponse<CheckNameResponse>> {
-  await delay(STUB_DELAY)
-
-  // STUB: Simulate name check
-  // TODO: Replace with actual API call
-  // return await fetch(`${serverUrl}/check-name`, {
-  //   method: 'POST',
-  //   body: JSON.stringify({ name })
-  // }).then(r => r.json())
-
-  const reserved = ['admin', 'test', 'server', 'system']
-  const isReserved = reserved.includes(name.toLowerCase())
-
-  return {
-    success: true,
-    data: {
-      available: !isReserved,
-      reason: isReserved ? 'Это имя зарезервировано' : undefined,
-    },
-  }
+  return apiFetch<CheckNameResponse>(serverUrl, '/check-name', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
 }
 
 /**
  * Join server with player name
- * STUB: Generates random session/player IDs
  */
 export async function joinServer(
   serverUrl: string,
   name: string,
 ): Promise<ApiResponse<JoinServerResponse>> {
-  await delay(STUB_DELAY)
+  const response = await apiFetch<JoinServerResponse>(serverUrl, '/join', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
 
-  // STUB: Simulate join
-  // TODO: Replace with actual API call
-
-  const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`
-  const playerId = `player_${Math.random().toString(36).slice(2)}`
-
-  storeSession(sessionId, playerId, name)
-
-  return {
-    success: true,
-    data: {
-      sessionId,
-      playerId,
-    },
+  if (response.success && response.data) {
+    storeSession(response.data.sessionId, response.data.playerId, name)
   }
+
+  return response
 }
 
 /**
  * Leave server / disconnect
- * STUB: Clears local session
  */
-export async function leaveServer(): Promise<ApiResponse<void>> {
-  await delay(STUB_DELAY / 2)
-
-  // STUB: Simulate leave
-  // TODO: Replace with actual API call
+export async function leaveServer(serverUrl: string): Promise<ApiResponse<void>> {
+  const response = await apiFetch<void>(serverUrl, '/leave', {
+    method: 'POST',
+  })
 
   clearSession()
 
-  return {
-    success: true,
-  }
+  return response
 }
 
 /**
  * Get list of rooms
- * STUB: Returns fake room list
  */
 export async function getRooms(serverUrl: string): Promise<ApiResponse<RoomListResponse>> {
-  await delay(STUB_DELAY)
-
-  // STUB: Simulate room list
-  // TODO: Replace with actual API call
-
-  const stubRooms: RoomInfo[] = [
-    {
-      id: 'room_1',
-      name: 'Комната новичков',
-      type: '1v1',
-      hasPassword: false,
-      status: 'waiting',
-      players: 1,
-      maxPlayers: 2,
-      hostName: 'Игрок1',
-    },
-    {
-      id: 'room_2',
-      name: 'Командная игра',
-      type: '2v2',
-      hasPassword: false,
-      status: 'waiting',
-      players: 2,
-      maxPlayers: 4,
-      hostName: 'ProGamer',
-    },
-    {
-      id: 'room_3',
-      name: 'Приватная комната',
-      type: '1v1',
-      hasPassword: true,
-      status: 'waiting',
-      players: 1,
-      maxPlayers: 2,
-      hostName: 'VIP',
-    },
-  ]
-
-  return {
-    success: true,
-    data: {
-      rooms: stubRooms,
-    },
-  }
+  return apiFetch<RoomListResponse>(serverUrl, '/rooms')
 }
 
 /**
  * Create a new room
- * STUB: Returns fake room
  */
 export async function createRoom(
   serverUrl: string,
   name: string,
   type: RoomType,
+  boardType: BoardType,
   password?: string,
 ): Promise<ApiResponse<CreateRoomResponse>> {
-  await delay(STUB_DELAY)
-
-  // STUB: Simulate room creation
-  // TODO: Replace with actual API call
-
-  const session = getStoredSession()
-  if (!session) {
-    return {
-      success: false,
-      error: 'Не авторизован',
-    }
-  }
-
-  const maxPlayers = type === '1v1' ? 2 : 4
-
-  const room: Room = {
-    id: `room_${Date.now()}`,
-    name,
-    type,
-    hasPassword: !!password,
-    status: 'waiting',
-    players: [
-      {
-        id: session.playerId,
-        name: session.playerName,
-        isHost: true,
-        isReady: true,
-        isAI: false,
-        team: 1,
-      },
-    ],
-    maxPlayers,
-    hostId: session.playerId,
-  }
-
-  return {
-    success: true,
-    data: { room },
-  }
+  return apiFetch<CreateRoomResponse>(serverUrl, '/rooms', {
+    method: 'POST',
+    body: JSON.stringify({ name, type, boardType, password }),
+  })
 }
 
 /**
  * Join an existing room
- * STUB: Returns fake joined room
  */
 export async function joinRoom(
   serverUrl: string,
   roomId: string,
   password?: string,
 ): Promise<ApiResponse<JoinRoomResponse>> {
-  await delay(STUB_DELAY)
-
-  // STUB: Simulate join room
-  // TODO: Replace with actual API call
-
-  const session = getStoredSession()
-  if (!session) {
-    return {
-      success: false,
-      error: 'Не авторизован',
-    }
-  }
-
-  // Fake room data
-  const room: Room = {
-    id: roomId,
-    name: 'Тестовая комната',
-    type: '1v1',
-    hasPassword: !!password,
-    status: 'waiting',
-    players: [
-      {
-        id: 'host_player',
-        name: 'Хост',
-        isHost: true,
-        isReady: true,
-        isAI: false,
-        team: 1,
-      },
-      {
-        id: session.playerId,
-        name: session.playerName,
-        isHost: false,
-        isReady: false,
-        isAI: false,
-        team: 2,
-      },
-    ],
-    maxPlayers: 2,
-    hostId: 'host_player',
-  }
-
-  return {
-    success: true,
-    data: { room },
-  }
+  return apiFetch<JoinRoomResponse>(serverUrl, `/rooms/${roomId}/join`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  })
 }
 
 /**
  * Leave current room
- * STUB: Always succeeds
  */
 export async function leaveRoom(serverUrl: string, roomId: string): Promise<ApiResponse<void>> {
-  await delay(STUB_DELAY / 2)
-
-  // STUB: Simulate leave room
-  // TODO: Replace with actual API call
-
-  return {
-    success: true,
-  }
+  return apiFetch<void>(serverUrl, `/rooms/${roomId}/leave`, {
+    method: 'POST',
+  })
 }
 
 /**
  * Set player ready status in room
- * STUB: Always succeeds
  */
 export async function setReady(
   serverUrl: string,
   roomId: string,
   ready: boolean,
 ): Promise<ApiResponse<void>> {
-  await delay(STUB_DELAY / 2)
-
-  // STUB: Simulate ready toggle
-  // TODO: Replace with actual API call
-
-  return {
-    success: true,
-  }
+  return apiFetch<void>(serverUrl, `/rooms/${roomId}/ready`, {
+    method: 'POST',
+    body: JSON.stringify({ ready }),
+  })
 }
 
 /**
  * Change team in room (for 2v2)
- * STUB: Always succeeds
  */
 export async function changeTeam(
   serverUrl: string,
   roomId: string,
   team: 1 | 2,
 ): Promise<ApiResponse<void>> {
-  await delay(STUB_DELAY / 2)
-
-  // STUB: Simulate team change
-  // TODO: Replace with actual API call
-
-  return {
-    success: true,
-  }
+  return apiFetch<void>(serverUrl, `/rooms/${roomId}/team`, {
+    method: 'POST',
+    body: JSON.stringify({ team }),
+  })
 }
 
 /**
  * Start game (host only)
- * STUB: Returns success with AI fill info
  */
 export async function startGame(
   serverUrl: string,
   roomId: string,
 ): Promise<ApiResponse<StartGameResponse>> {
-  await delay(STUB_DELAY)
-
-  // STUB: Simulate game start
-  // TODO: Replace with actual API call
-
-  return {
-    success: true,
-    data: {
-      gameId: `game_${Date.now()}`,
-      missingPlayersFilledWithAI: false,
-      aiCount: 0,
-    },
-  }
+  return apiFetch<StartGameResponse>(serverUrl, `/rooms/${roomId}/start`, {
+    method: 'POST',
+  })
 }
 
 /**
  * Vote for rematch
- * STUB: Returns current rematch state
  */
 export async function voteRematch(
   serverUrl: string,
   gameId: string,
   vote: boolean,
 ): Promise<ApiResponse<RematchResponse>> {
-  await delay(STUB_DELAY / 2)
-
-  // STUB: Simulate rematch vote
-  // TODO: Replace with actual API call
-
-  const session = getStoredSession()
-
-  const rematchState: RematchState = {
-    active: true,
-    votes: [
-      {
-        playerId: session?.playerId || 'unknown',
-        vote,
-        timestamp: Date.now(),
-      },
-    ],
-    deadline: Date.now() + 30000,
-    requiredVotes: 2,
-  }
-
-  return {
-    success: true,
-    data: { rematchState },
-  }
+  return apiFetch<RematchResponse>(serverUrl, `/games/${gameId}/rematch`, {
+    method: 'POST',
+    body: JSON.stringify({ vote }),
+  })
 }
 
 /**
  * Cancel rematch voting (returns to lobby)
- * STUB: Always succeeds
  */
 export async function cancelRematch(
   serverUrl: string,
   gameId: string,
 ): Promise<ApiResponse<void>> {
-  await delay(STUB_DELAY / 2)
-
-  // STUB: Simulate cancel
-  // TODO: Replace with actual API call
-
-  return {
-    success: true,
-  }
+  return apiFetch<void>(serverUrl, `/games/${gameId}/cancel-rematch`, {
+    method: 'POST',
+  })
 }
 
 /**
  * Send game turn to server
- * STUB: Always succeeds
  */
 export async function sendTurn(
   serverUrl: string,
@@ -465,12 +275,8 @@ export async function sendTurn(
   row: number,
   col: number,
 ): Promise<ApiResponse<void>> {
-  await delay(STUB_DELAY / 3)
-
-  // STUB: Simulate turn
-  // TODO: Replace with actual API call
-
-  return {
-    success: true,
-  }
+  return apiFetch<void>(serverUrl, `/games/${gameId}/turn`, {
+    method: 'POST',
+    body: JSON.stringify({ cardIndex, row, col }),
+  })
 }

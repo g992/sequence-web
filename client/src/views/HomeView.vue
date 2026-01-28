@@ -4,12 +4,17 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useOnlineStore } from '@/stores/online'
 import type { AIDifficulty } from '@/data/ai'
+import type { BoardType } from '@/types'
+import { getBoardTypeLabel, getBoardTypeDescription } from '@/data/board'
 
 const router = useRouter()
 const game = useGameStore()
 const online = useOnlineStore()
 
 const showDifficultySelect = ref(false)
+const showBoardTypeSelect = ref(false)
+const selectedDifficulty = ref<AIDifficulty | null>(null)
+const selectedBoardType = ref<BoardType>('classic')
 const hasSaved = ref(false)
 
 // Online state
@@ -36,10 +41,20 @@ onMounted(() => {
 
 function openDifficultySelect() {
   showDifficultySelect.value = true
+  showBoardTypeSelect.value = false
+  selectedDifficulty.value = null
 }
 
-function startAIGame(difficulty: AIDifficulty) {
-  game.initAIGame(difficulty)
+function selectDifficulty(difficulty: AIDifficulty) {
+  selectedDifficulty.value = difficulty
+  showDifficultySelect.value = false
+  showBoardTypeSelect.value = true
+  selectedBoardType.value = 'classic'
+}
+
+function startAIGame() {
+  if (!selectedDifficulty.value) return
+  game.initAIGame(selectedDifficulty.value, selectedBoardType.value)
   game.startGame()
   router.push('/game')
 }
@@ -52,6 +67,17 @@ function continueGame() {
 
 function cancelDifficultySelect() {
   showDifficultySelect.value = false
+}
+
+function cancelBoardTypeSelect() {
+  showBoardTypeSelect.value = false
+  showDifficultySelect.value = true
+}
+
+function backToMenu() {
+  showDifficultySelect.value = false
+  showBoardTypeSelect.value = false
+  selectedDifficulty.value = null
 }
 
 // Online functions
@@ -139,6 +165,8 @@ const difficulties: Array<{ id: AIDifficulty; name: string; desc: string }> = [
     desc: 'ИИ строит последовательности и блокирует ваши',
   },
 ]
+
+const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
 </script>
 
 <template>
@@ -149,7 +177,7 @@ const difficulties: Array<{ id: AIDifficulty; name: string; desc: string }> = [
     </div>
 
     <!-- Main Menu -->
-    <div v-if="!showDifficultySelect" class="menu">
+    <div v-if="!showDifficultySelect && !showBoardTypeSelect" class="menu">
       <button class="menu-btn primary" @click="openDifficultySelect">
         <span class="btn-icon">&#129302;</span>
         <span class="btn-text">
@@ -238,7 +266,7 @@ const difficulties: Array<{ id: AIDifficulty; name: string; desc: string }> = [
     </div>
 
     <!-- Difficulty Selection -->
-    <div v-else class="difficulty-select">
+    <div v-else-if="showDifficultySelect" class="difficulty-select">
       <h2>Выберите сложность</h2>
 
       <div class="difficulty-options">
@@ -246,7 +274,7 @@ const difficulties: Array<{ id: AIDifficulty; name: string; desc: string }> = [
           v-for="diff in difficulties"
           :key="diff.id"
           :class="['difficulty-btn', diff.id]"
-          @click="startAIGame(diff.id)"
+          @click="selectDifficulty(diff.id)"
         >
           <span class="diff-name">{{ diff.name }}</span>
           <span class="diff-desc">{{ diff.desc }}</span>
@@ -256,6 +284,32 @@ const difficulties: Array<{ id: AIDifficulty; name: string; desc: string }> = [
       <button class="back-link" @click="cancelDifficultySelect">
         &#8592; Назад
       </button>
+    </div>
+
+    <!-- Board Type Selection -->
+    <div v-else-if="showBoardTypeSelect" class="board-select">
+      <h2>Выберите тип поля</h2>
+
+      <div class="board-options">
+        <button
+          v-for="boardType in boardTypes"
+          :key="boardType"
+          :class="['board-btn', { active: selectedBoardType === boardType }]"
+          @click="selectedBoardType = boardType"
+        >
+          <span class="board-name">{{ getBoardTypeLabel(boardType) }}</span>
+          <span class="board-desc">{{ getBoardTypeDescription(boardType) }}</span>
+        </button>
+      </div>
+
+      <div class="board-actions">
+        <button class="back-link" @click="cancelBoardTypeSelect">
+          &#8592; Назад
+        </button>
+        <button class="start-btn" @click="startAIGame">
+          Начать игру
+        </button>
+      </div>
     </div>
 
     <div class="rules">
@@ -479,6 +533,96 @@ const difficulties: Array<{ id: AIDifficulty; name: string; desc: string }> = [
 
 .back-link:hover {
   color: #ecf0f1;
+}
+
+/* Board Type Selection */
+.board-select {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.board-select h2 {
+  color: #ecf0f1;
+  margin: 0;
+  font-size: 20px;
+}
+
+.board-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.board-btn {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  background: #1a1a2e;
+  border: 2px solid #2c3e50;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.board-btn:hover {
+  border-color: #3498db;
+  transform: translateX(4px);
+}
+
+.board-btn.active {
+  border-color: #f1c40f;
+  background: rgba(241, 196, 15, 0.1);
+}
+
+.board-btn:active {
+  transform: scale(0.98);
+}
+
+.board-name {
+  color: #ecf0f1;
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.board-desc {
+  color: #95a5a6;
+  font-size: 12px;
+}
+
+.board-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+}
+
+.start-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #27ae60, #229954);
+  border: 2px solid #27ae60;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.start-btn:hover {
+  border-color: #2ecc71;
+  transform: translateX(4px);
+}
+
+.start-btn:active {
+  transform: scale(0.98);
 }
 
 /* Online Section */
