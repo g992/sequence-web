@@ -1,28 +1,28 @@
 <script setup lang="ts">
-import type { BoardCard } from '@/types'
+import type { BoardCard } from "@/types";
 
 const props = defineProps<{
-  card: BoardCard
-  size?: 'small' | 'medium' | 'large'
-}>()
+  card: BoardCard;
+  size?: "small" | "medium" | "large";
+}>();
 
 const suitSymbols: Record<string, string> = {
-  spades: '\u2660',
-  hearts: '\u2665',
-  diamonds: '\u2666',
-  clubs: '\u2663',
-}
+  spades: "\u2660",
+  hearts: "\u2665",
+  diamonds: "\u2666",
+  clubs: "\u2663",
+};
 
 const suitColors: Record<string, string> = {
-  spades: '#1a1a2e',
-  hearts: '#c0392b',
-  diamonds: '#c0392b',
-  clubs: '#1a1a2e',
-}
+  spades: "#1a1a2e",
+  hearts: "#c0392b",
+  diamonds: "#c0392b",
+  clubs: "#1a1a2e",
+};
 
 function getRankDisplay(rank: string): string {
-  if (rank === 'T') return '10'
-  return rank
+  if (rank === "T") return "10";
+  return rank;
 }
 </script>
 
@@ -30,7 +30,11 @@ function getRankDisplay(rank: string): string {
   <div v-if="card === 'CORNER'" :class="['card', 'corner', size || 'medium']">
     <span class="corner-star">&#9733;</span>
   </div>
-  <div v-else :class="['card', size || 'medium']" :style="{ color: suitColors[card.suit] }">
+  <div
+    v-else
+    :class="['card', size || 'medium']"
+    :style="{ color: suitColors[card.suit] }"
+  >
     <span class="rank">{{ getRankDisplay(card.rank) }}</span>
     <span class="suit">{{ suitSymbols[card.suit] }}</span>
   </div>

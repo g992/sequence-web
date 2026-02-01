@@ -1,119 +1,127 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useOnlineStore } from '@/stores/online'
-import { useGameStore } from '@/stores/game'
-import { getBoardTypeLabel } from '@/data/board'
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { useOnlineStore } from "@/stores/online";
+import { useGameStore } from "@/stores/game";
+import { getBoardTypeLabel } from "@/data/board";
 
-const router = useRouter()
-const online = useOnlineStore()
-const game = useGameStore()
+const router = useRouter();
+const online = useOnlineStore();
+const game = useGameStore();
 
 // UI state
-const isStarting = ref(false)
-const showAIWarning = ref(false)
-const aiCount = ref(0)
+const isStarting = ref(false);
+const showAIWarning = ref(false);
+const aiCount = ref(0);
 
 onMounted(() => {
   // Check if in room
   if (!online.currentRoom) {
-    router.push('/lobby')
-    return
+    router.push("/lobby");
+    return;
   }
-})
+});
 
 onUnmounted(() => {
   // Cleanup if needed
-})
+});
 
-const room = computed(() => online.currentRoom)
+const room = computed(() => online.currentRoom);
 
 const playersTeam1 = computed(() => {
-  if (!room.value) return []
-  return room.value.players.filter((p) => p.team === 1)
-})
+  if (!room.value) return [];
+  return room.value.players.filter((p) => p.team === 1);
+});
 
 const playersTeam2 = computed(() => {
-  if (!room.value) return []
-  return room.value.players.filter((p) => p.team === 2)
-})
+  if (!room.value) return [];
+  return room.value.players.filter((p) => p.team === 2);
+});
 
-const isTeamGame = computed(() => room.value?.type === '2v2')
+const isTeamGame = computed(() => room.value?.type === "2v2");
 
 const allPlayersReady = computed(() => {
-  if (!room.value) return false
-  return room.value.players.every((p) => p.isReady)
-})
+  if (!room.value) return false;
+  return room.value.players.every((p) => p.isReady);
+});
 
 async function handleLeaveRoom() {
-  await online.leaveRoom()
-  router.push('/lobby')
+  await online.leaveRoom();
+  router.push("/lobby");
 }
 
 async function toggleReady() {
-  if (!online.currentPlayer) return
-  await online.setReady(!online.currentPlayer.isReady)
+  if (!online.currentPlayer) return;
+  await online.setReady(!online.currentPlayer.isReady);
 }
 
 async function handleChangeTeam(team: 1 | 2) {
-  await online.changeTeam(team)
+  await online.changeTeam(team);
 }
 
 async function handleStartGame() {
-  if (!online.isHost) return
+  if (!online.isHost) return;
 
   // Check if we need to fill with AI
-  const missing = online.missingPlayers
+  const missing = online.missingPlayers;
 
   if (missing > 0) {
-    aiCount.value = missing
-    showAIWarning.value = true
-    return
+    aiCount.value = missing;
+    showAIWarning.value = true;
+    return;
   }
 
-  await startGameConfirmed()
+  await startGameConfirmed();
 }
 
 async function startGameConfirmed() {
-  showAIWarning.value = false
-  isStarting.value = true
+  showAIWarning.value = false;
+  isStarting.value = true;
 
-  const result = await online.startGame()
+  const result = await online.startGame();
 
   if (result.success) {
     // TODO: Initialize game state from server and navigate
     // For now, we'll just navigate to game
-    router.push('/game')
+    router.push("/game");
   }
 
-  isStarting.value = false
+  isStarting.value = false;
 }
 
 function cancelStart() {
-  showAIWarning.value = false
+  showAIWarning.value = false;
 }
 
 function getPlayerStatusClass(isReady: boolean, isHost: boolean): string {
-  if (isHost) return 'host'
-  return isReady ? 'ready' : 'not-ready'
+  if (isHost) return "host";
+  return isReady ? "ready" : "not-ready";
 }
 </script>
 
 <template>
   <div class="room-view">
     <header class="room-header">
-      <button class="back-btn" @click="handleLeaveRoom" title="Выйти из комнаты">
+      <button
+        class="back-btn"
+        @click="handleLeaveRoom"
+        title="Выйти из комнаты"
+      >
         &#8592;
       </button>
       <div class="header-info">
-        <h1>{{ room?.name || 'Комната' }}</h1>
+        <h1>{{ room?.name || "Комната" }}</h1>
         <div class="room-info-tags">
-          <span class="room-type">{{ room?.type === '2v2' ? 'Команды 2 на 2' : '1 на 1' }}</span>
-          <span class="room-board-type">{{ room?.boardType ? getBoardTypeLabel(room.boardType) : '' }}</span>
+          <span class="room-type">{{
+            room?.type === "2v2" ? "Команды 2 на 2" : "1 на 1"
+          }}</span>
+          <span class="room-board-type">{{
+            room?.boardType ? getBoardTypeLabel(room.boardType) : ""
+          }}</span>
         </div>
       </div>
       <div class="room-status-badge" :class="room?.status">
-        {{ room?.status === 'waiting' ? 'Ожидание' : 'В игре' }}
+        {{ room?.status === "waiting" ? "Ожидание" : "В игре" }}
       </div>
     </header>
 
@@ -133,7 +141,7 @@ function getPlayerStatusClass(isReady: boolean, isHost: boolean): string {
 
           <div class="players-list">
             <div
-              v-for="player in (isTeamGame ? playersTeam1 : room?.players || [])"
+              v-for="player in isTeamGame ? playersTeam1 : room?.players || []"
               :key="player.id"
               class="player-slot"
               :class="getPlayerStatusClass(player.isReady, player.isHost)"
@@ -153,7 +161,12 @@ function getPlayerStatusClass(isReady: boolean, isHost: boolean): string {
 
             <!-- Empty slots -->
             <div
-              v-for="i in (isTeamGame ? Math.max(0, 2 - playersTeam1.length) : Math.max(0, (room?.maxPlayers || 2) - (room?.players.length || 0)))"
+              v-for="i in isTeamGame
+                ? Math.max(0, 2 - playersTeam1.length)
+                : Math.max(
+                    0,
+                    (room?.maxPlayers || 2) - (room?.players.length || 0),
+                  )"
               :key="'empty-1-' + i"
               class="player-slot empty"
             >
@@ -225,7 +238,7 @@ function getPlayerStatusClass(isReady: boolean, isHost: boolean): string {
           :class="{ active: online.currentPlayer?.isReady }"
           @click="toggleReady"
         >
-          {{ online.currentPlayer?.isReady ? 'Не готов' : 'Готов' }}
+          {{ online.currentPlayer?.isReady ? "Не готов" : "Готов" }}
         </button>
 
         <!-- Start button (for host) -->
@@ -235,12 +248,16 @@ function getPlayerStatusClass(isReady: boolean, isHost: boolean): string {
           :disabled="isStarting"
           @click="handleStartGame"
         >
-          {{ isStarting ? 'Запуск...' : 'Начать игру' }}
+          {{ isStarting ? "Запуск..." : "Начать игру" }}
         </button>
 
         <!-- Info about missing players -->
-        <p v-if="online.isHost && online.missingPlayers > 0" class="missing-info">
-          Не хватает {{ online.missingPlayers }} игрок(а). При старте они будут заменены ИИ.
+        <p
+          v-if="online.isHost && online.missingPlayers > 0"
+          class="missing-info"
+        >
+          Не хватает {{ online.missingPlayers }} игрок(а). При старте они будут
+          заменены ИИ.
         </p>
       </div>
     </main>

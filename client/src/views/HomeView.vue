@@ -1,172 +1,210 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useGameStore } from '@/stores/game'
-import { useOnlineStore } from '@/stores/online'
-import type { AIDifficulty } from '@/data/ai'
-import type { BoardType } from '@/types'
-import { getBoardTypeLabel, getBoardTypeDescription } from '@/data/board'
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { useGameStore } from "@/stores/game";
+import { useOnlineStore } from "@/stores/online";
+import type { AIDifficulty } from "@/data/ai";
+import type { BoardType } from "@/types";
+import { getBoardTypeLabel, getBoardTypeDescription } from "@/data/board";
 
-const router = useRouter()
-const game = useGameStore()
-const online = useOnlineStore()
+const router = useRouter();
+const game = useGameStore();
+const online = useOnlineStore();
 
-const showDifficultySelect = ref(false)
-const showBoardTypeSelect = ref(false)
-const selectedDifficulty = ref<AIDifficulty | null>(null)
-const selectedBoardType = ref<BoardType>('classic')
-const hasSaved = ref(false)
+const showDifficultySelect = ref(false);
+const showBoardTypeSelect = ref(false);
+const selectedDifficulty = ref<AIDifficulty | null>(null);
+const selectedBoardType = ref<BoardType>("classic");
+const hasSaved = ref(false);
 
 // Online state
-const serverAddress = ref('')
-const playerNameInput = ref('')
-const isCheckingServer = ref(false)
-const isCheckingName = ref(false)
-const isJoiningServer = ref(false)
-const nameError = ref<string | null>(null)
+const serverAddress = ref("");
+const playerNameInput = ref("");
+const isCheckingServer = ref(false);
+const isCheckingName = ref(false);
+const isJoiningServer = ref(false);
+const nameError = ref<string | null>(null);
+const isAutoRestoring = ref(false);
 
 // Server status
-const serverChecked = computed(() => online.connectionStatus === 'connected')
-const serverError = computed(() => online.connectionStatus === 'error')
+const serverChecked = computed(() => online.connectionStatus === "connected");
+const serverError = computed(() => online.connectionStatus === "error");
 
-onMounted(() => {
-  hasSaved.value = game.hasSavedGame()
-  online.initFromStorage()
+onMounted(async () => {
+  hasSaved.value = game.hasSavedGame();
+  online.initFromStorage();
 
   // Restore server address if previously saved
   if (online.serverUrl) {
-    serverAddress.value = online.serverUrl
+    serverAddress.value = online.serverUrl;
   }
-})
+
+  // Restore player name if previously saved
+  if (online.playerName) {
+    playerNameInput.value = online.playerName;
+  }
+
+  // Auto-restore session if we have saved credentials
+  if (online.serverUrl && online.sessionId && online.playerName) {
+    isAutoRestoring.value = true;
+
+    // Try to ping server
+    const pingSuccess = await online.pingServer(online.serverUrl);
+
+    if (pingSuccess) {
+      // Server is available, try to connect WebSocket and go to lobby
+      online.isAuthenticated = true;
+
+      // Connect WebSocket
+      await new Promise<void>((resolve) => {
+        const wsUrl = online.serverUrl;
+        const wsSessionId = online.sessionId;
+        if (wsUrl && wsSessionId) {
+          import("@/services/websocket").then(({ wsService }) => {
+            wsService.connect(wsUrl, wsSessionId);
+            resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+
+      // Navigate to lobby
+      router.push("/lobby");
+    }
+
+    isAutoRestoring.value = false;
+  }
+});
 
 function openDifficultySelect() {
-  showDifficultySelect.value = true
-  showBoardTypeSelect.value = false
-  selectedDifficulty.value = null
+  showDifficultySelect.value = true;
+  showBoardTypeSelect.value = false;
+  selectedDifficulty.value = null;
 }
 
 function selectDifficulty(difficulty: AIDifficulty) {
-  selectedDifficulty.value = difficulty
-  showDifficultySelect.value = false
-  showBoardTypeSelect.value = true
-  selectedBoardType.value = 'classic'
+  selectedDifficulty.value = difficulty;
+  showDifficultySelect.value = false;
+  showBoardTypeSelect.value = true;
+  selectedBoardType.value = "classic";
 }
 
 function startAIGame() {
-  if (!selectedDifficulty.value) return
-  game.initAIGame(selectedDifficulty.value, selectedBoardType.value)
-  game.startGame()
-  router.push('/game')
+  if (!selectedDifficulty.value) return;
+  game.initAIGame(selectedDifficulty.value, selectedBoardType.value);
+  game.startGame();
+  router.push("/game");
 }
 
 function continueGame() {
   if (game.loadGame()) {
-    router.push('/game')
+    router.push("/game");
   }
 }
 
 function cancelDifficultySelect() {
-  showDifficultySelect.value = false
+  showDifficultySelect.value = false;
 }
 
 function cancelBoardTypeSelect() {
-  showBoardTypeSelect.value = false
-  showDifficultySelect.value = true
+  showBoardTypeSelect.value = false;
+  showDifficultySelect.value = true;
 }
 
 function backToMenu() {
-  showDifficultySelect.value = false
-  showBoardTypeSelect.value = false
-  selectedDifficulty.value = null
+  showDifficultySelect.value = false;
+  showBoardTypeSelect.value = false;
+  selectedDifficulty.value = null;
 }
 
 // Online functions
 async function checkServer() {
-  if (!serverAddress.value.trim()) return
+  if (!serverAddress.value.trim()) return;
 
-  isCheckingServer.value = true
-  online.clearError()
+  isCheckingServer.value = true;
+  online.clearError();
 
-  let url = serverAddress.value.trim()
+  let url = serverAddress.value.trim();
   // Add protocol if missing
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = 'https://' + url
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = "https://" + url;
   }
   // Remove trailing slash
-  url = url.replace(/\/$/, '')
+  url = url.replace(/\/$/, "");
 
-  await online.pingServer(url)
-  isCheckingServer.value = false
+  await online.pingServer(url);
+  isCheckingServer.value = false;
 }
 
 async function checkName() {
   if (!playerNameInput.value.trim()) {
-    nameError.value = 'Введите имя'
-    return
+    nameError.value = "Введите имя";
+    return;
   }
 
   if (playerNameInput.value.trim().length < 2) {
-    nameError.value = 'Минимум 2 символа'
-    return
+    nameError.value = "Минимум 2 символа";
+    return;
   }
 
   if (playerNameInput.value.trim().length > 16) {
-    nameError.value = 'Максимум 16 символов'
-    return
+    nameError.value = "Максимум 16 символов";
+    return;
   }
 
-  isCheckingName.value = true
-  nameError.value = null
+  isCheckingName.value = true;
+  nameError.value = null;
 
-  const result = await online.checkNameAvailable(playerNameInput.value.trim())
+  const result = await online.checkNameAvailable(playerNameInput.value.trim());
 
-  isCheckingName.value = false
+  isCheckingName.value = false;
 
   if (!result.available) {
-    nameError.value = result.reason || 'Имя недоступно'
+    nameError.value = result.reason || "Имя недоступно";
   }
 }
 
 async function handlePlayOnline() {
-  if (!playerNameInput.value.trim() || nameError.value) return
+  if (!playerNameInput.value.trim() || nameError.value) return;
 
-  isJoiningServer.value = true
+  isJoiningServer.value = true;
 
-  const success = await online.joinServerWithName(playerNameInput.value.trim())
+  const success = await online.joinServerWithName(playerNameInput.value.trim());
 
-  isJoiningServer.value = false
+  isJoiningServer.value = false;
 
   if (success) {
-    router.push('/lobby')
+    router.push("/lobby");
   }
 }
 
 function disconnectServer() {
-  online.disconnect()
-  serverAddress.value = ''
-  playerNameInput.value = ''
-  nameError.value = null
+  online.disconnect();
+  serverAddress.value = "";
+  playerNameInput.value = "";
+  nameError.value = null;
 }
 
 const difficulties: Array<{ id: AIDifficulty; name: string; desc: string }> = [
   {
-    id: 'easy',
-    name: 'Легкий',
-    desc: 'ИИ играет случайно, иногда строит последовательности',
+    id: "easy",
+    name: "Легкий",
+    desc: "ИИ играет случайно, иногда строит последовательности",
   },
   {
-    id: 'medium',
-    name: 'Средний',
-    desc: 'ИИ всегда старается продолжить свои последовательности',
+    id: "medium",
+    name: "Средний",
+    desc: "ИИ всегда старается продолжить свои последовательности",
   },
   {
-    id: 'hard',
-    name: 'Сложный',
-    desc: 'ИИ строит последовательности и блокирует ваши',
+    id: "hard",
+    name: "Сложный",
+    desc: "ИИ строит последовательности и блокирует ваши",
   },
-]
+];
 
-const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
+const boardTypes: BoardType[] = ["classic", "alternative", "advanced"];
 </script>
 
 <template>
@@ -176,8 +214,14 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
       <p class="subtitle">Настольная игра</p>
     </div>
 
+    <!-- Auto-restore loading -->
+    <div v-if="isAutoRestoring" class="auto-restore">
+      <div class="loading-spinner"></div>
+      <span>Восстановление сессии...</span>
+    </div>
+
     <!-- Main Menu -->
-    <div v-if="!showDifficultySelect && !showBoardTypeSelect" class="menu">
+    <div v-if="!showDifficultySelect && !showBoardTypeSelect && !isAutoRestoring" class="menu">
       <button class="menu-btn primary" @click="openDifficultySelect">
         <span class="btn-icon">&#129302;</span>
         <span class="btn-text">
@@ -214,13 +258,9 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
             :disabled="!serverAddress.trim() || isCheckingServer"
             @click="checkServer"
           >
-            {{ isCheckingServer ? '...' : 'Проверить' }}
+            {{ isCheckingServer ? "..." : "Проверить" }}
           </button>
-          <button
-            v-else
-            class="disconnect-btn"
-            @click="disconnectServer"
-          >
+          <button v-else class="disconnect-btn" @click="disconnectServer">
             &#10005;
           </button>
         </div>
@@ -228,11 +268,15 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
         <!-- Server status -->
         <div v-if="serverChecked" class="server-status connected">
           <span class="status-icon">&#10003;</span>
-          <span class="status-text">{{ online.serverName }} (v{{ online.serverVersion }})</span>
+          <span class="status-text"
+            >{{ online.serverName }} (v{{ online.serverVersion }})</span
+          >
         </div>
         <div v-else-if="serverError" class="server-status error">
           <span class="status-icon">&#10007;</span>
-          <span class="status-text">{{ online.lastError || 'Сервер недоступен' }}</span>
+          <span class="status-text">{{
+            online.lastError || "Сервер недоступен"
+          }}</span>
         </div>
 
         <!-- Player name input (shown after server connected) -->
@@ -258,7 +302,9 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
         >
           <span class="btn-icon">&#127760;</span>
           <span class="btn-text">
-            <span class="btn-title">{{ isJoiningServer ? 'Подключение...' : 'Играть онлайн' }}</span>
+            <span class="btn-title">{{
+              isJoiningServer ? "Подключение..." : "Играть онлайн"
+            }}</span>
             <span class="btn-desc">Присоединиться к серверу</span>
           </span>
         </button>
@@ -298,7 +344,9 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
           @click="selectedBoardType = boardType"
         >
           <span class="board-name">{{ getBoardTypeLabel(boardType) }}</span>
-          <span class="board-desc">{{ getBoardTypeDescription(boardType) }}</span>
+          <span class="board-desc">{{
+            getBoardTypeDescription(boardType)
+          }}</span>
         </button>
       </div>
 
@@ -306,17 +354,19 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
         <button class="back-link" @click="cancelBoardTypeSelect">
           &#8592; Назад
         </button>
-        <button class="start-btn" @click="startAIGame">
-          Начать игру
-        </button>
+        <button class="start-btn" @click="startAIGame">Начать игру</button>
       </div>
     </div>
 
-    <div class="rules">
+    <div v-if="!isAutoRestoring" class="rules">
       <h3>Как играть</h3>
       <ul>
-        <li>Сыграйте карту, чтобы поставить фишку на соответствующую позицию</li>
-        <li>Соберите 5 фишек в ряд (по горизонтали, вертикали или диагонали)</li>
+        <li>
+          Сыграйте карту, чтобы поставить фишку на соответствующую позицию
+        </li>
+        <li>
+          Соберите 5 фишек в ряд (по горизонтали, вертикали или диагонали)
+        </li>
         <li>Угловые клетки — универсальные, считаются для всех</li>
         <li>Двуглазые валеты (&#9830; &#9827;) — ставьте фишку куда угодно</li>
         <li>Одноглазые валеты (&#9824; &#9829;) — уберите фишку противника</li>
@@ -374,6 +424,7 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
+  width: 100%;
 }
 
 .menu-btn:hover {
@@ -754,6 +805,32 @@ const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
   color: #e74c3c;
   font-size: 12px;
   margin-top: 4px;
+}
+
+/* Auto-restore loading */
+.auto-restore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  color: #95a5a6;
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #2c3e50;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .rules {

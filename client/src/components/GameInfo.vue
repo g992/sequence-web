@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '@/stores/game'
-import { countSequences } from '@/data/sequence'
-import type { TeamColor } from '@/types'
+import { computed } from "vue";
+import { useGameStore } from "@/stores/game";
+import { countSequences } from "@/data/sequence";
+import type { TeamColor } from "@/types";
 
-const game = useGameStore()
+const game = useGameStore();
 
 const teamColors: Record<string, string> = {
-  green: '#27ae60',
-  blue: '#2980b9',
-  red: '#c0392b',
-}
+  green: "#27ae60",
+  blue: "#2980b9",
+  red: "#c0392b",
+};
 
 const colorNames: Record<string, string> = {
-  green: 'Зелёный',
-  blue: 'Синий',
-  red: 'Красный',
-}
+  green: "Зелёный",
+  blue: "Синий",
+  red: "Красный",
+};
 
-const availableColors: TeamColor[] = ['green', 'blue', 'red']
+const availableColors: TeamColor[] = ["green", "blue", "red"];
 
 const teamScores = computed(() => {
   return game.teams.map((team) => ({
@@ -26,22 +26,23 @@ const teamScores = computed(() => {
     sequences: countSequences(game.sequences, team.color),
     isPlayer: team.playerIds.includes(game.localPlayerId),
     isActive: game.currentPlayer?.teamColor === team.color,
-  }))
-})
+  }));
+});
 
 function cyclePlayerColor() {
-  const player = game.localPlayer
-  if (!player) return
+  const player = game.localPlayer;
+  if (!player) return;
 
-  const opponentColor = game.players.find((p) => p.id !== player.id)?.teamColor
-  const currentIndex = availableColors.indexOf(player.teamColor)
+  const opponentColor = game.players.find((p) => p.id !== player.id)?.teamColor;
+  const currentIndex = availableColors.indexOf(player.teamColor);
 
   // Find next available color (not opponent's)
   for (let i = 1; i <= availableColors.length; i++) {
-    const nextColor = availableColors[(currentIndex + i) % availableColors.length]
+    const nextColor =
+      availableColors[(currentIndex + i) % availableColors.length];
     if (nextColor && nextColor !== opponentColor) {
-      game.changePlayerColor(nextColor)
-      break
+      game.changePlayerColor(nextColor);
+      break;
     }
   }
 }
@@ -52,7 +53,10 @@ function cyclePlayerColor() {
     <div
       v-for="team in teamScores"
       :key="team.color"
-      :class="['team-chip', { active: team.isActive, clickable: team.isPlayer }]"
+      :class="[
+        'team-chip',
+        { active: team.isActive, clickable: team.isPlayer },
+      ]"
       :style="{ '--team-color': teamColors[team.color] }"
       @click="team.isPlayer ? cyclePlayerColor() : null"
     >
@@ -61,7 +65,10 @@ function cyclePlayerColor() {
       <span v-if="team.isPlayer" class="you-badge">вы</span>
     </div>
 
-    <div v-if="game.isMyTurn && game.phase === 'playing'" class="turn-indicator">
+    <div
+      v-if="game.isMyTurn && game.phase === 'playing'"
+      class="turn-indicator"
+    >
       Ваш ход
     </div>
   </div>
@@ -142,7 +149,8 @@ function cyclePlayerColor() {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 4px rgba(39, 174, 96, 0.5);
   }
   50% {

@@ -1,14 +1,14 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
 import type {
   ConnectionStatus,
   RoomInfo,
   Room,
   RoomType,
   RematchState,
-} from '@/types/online'
-import type { BoardType } from '@/types'
-import * as api from '@/services/api'
+} from "@/types/online";
+import type { BoardType } from "@/types";
+import * as api from "@/services/api";
 import {
   wsService,
   type RoomUpdatedEvent,
@@ -16,266 +16,339 @@ import {
   type PlayerLeftEvent,
   type RematchVoteEvent,
   type RematchCancelledEvent,
-} from '@/services/websocket'
+  type GameStartedEvent,
+  type TurnMadeEvent,
+  type GameFinishedEvent,
+} from "@/services/websocket";
+import { useGameStore } from "@/stores/game";
 
-export const useOnlineStore = defineStore('online', () => {
+export const useOnlineStore = defineStore("online", () => {
   // Connection state
-  const serverUrl = ref<string>('')
-  const connectionStatus = ref<ConnectionStatus>('disconnected')
-  const serverName = ref<string>('')
-  const serverVersion = ref<string>('')
+  const serverUrl = ref<string>("");
+  const connectionStatus = ref<ConnectionStatus>("disconnected");
+  const serverName = ref<string>("");
+  const serverVersion = ref<string>("");
 
   // Session state
-  const sessionId = ref<string>('')
-  const playerId = ref<string>('')
-  const playerName = ref<string>('')
-  const isAuthenticated = ref<boolean>(false)
+  const sessionId = ref<string>("");
+  const playerId = ref<string>("");
+  const playerName = ref<string>("");
+  const isAuthenticated = ref<boolean>(false);
 
   // Lobby state
-  const rooms = ref<RoomInfo[]>([])
-  const isLoadingRooms = ref<boolean>(false)
+  const rooms = ref<RoomInfo[]>([]);
+  const isLoadingRooms = ref<boolean>(false);
 
   // Current room state
-  const currentRoom = ref<Room | null>(null)
-  const currentGameId = ref<string | null>(null)
+  const currentRoom = ref<Room | null>(null);
+  const currentGameId = ref<string | null>(null);
 
   // Rematch state
-  const rematchState = ref<RematchState | null>(null)
+  const rematchState = ref<RematchState | null>(null);
 
   // Error state
-  const lastError = ref<string | null>(null)
+  const lastError = ref<string | null>(null);
 
   // Computed
-  const isConnected = computed(() => connectionStatus.value === 'connected')
+  const isConnected = computed(() => connectionStatus.value === "connected");
 
-  const isInRoom = computed(() => currentRoom.value !== null)
+  const isInRoom = computed(() => currentRoom.value !== null);
 
   const isHost = computed(() => {
-    if (!currentRoom.value || !playerId.value) return false
-    return currentRoom.value.hostId === playerId.value
-  })
+    if (!currentRoom.value || !playerId.value) return false;
+    return currentRoom.value.hostId === playerId.value;
+  });
 
   const currentPlayer = computed(() => {
-    if (!currentRoom.value || !playerId.value) return null
-    return currentRoom.value.players.find((p) => p.id === playerId.value) || null
-  })
+    if (!currentRoom.value || !playerId.value) return null;
+    return (
+      currentRoom.value.players.find((p) => p.id === playerId.value) || null
+    );
+  });
 
   const canStartGame = computed(() => {
-    if (!isHost.value || !currentRoom.value) return false
+    if (!isHost.value || !currentRoom.value) return false;
     // Host can always start, missing players will be filled with AI
-    return true
-  })
+    return true;
+  });
 
   const missingPlayers = computed(() => {
-    if (!currentRoom.value) return 0
-    return currentRoom.value.maxPlayers - currentRoom.value.players.length
-  })
+    if (!currentRoom.value) return 0;
+    return currentRoom.value.maxPlayers - currentRoom.value.players.length;
+  });
 
   // Initialize from localStorage
   function initFromStorage() {
-    const storedUrl = api.getStoredServerUrl()
+    const storedUrl = api.getStoredServerUrl();
     if (storedUrl) {
-      serverUrl.value = storedUrl
+      serverUrl.value = storedUrl;
     }
 
-    const storedSession = api.getStoredSession()
+    const storedSession = api.getStoredSession();
     if (storedSession) {
-      sessionId.value = storedSession.sessionId
-      playerId.value = storedSession.playerId
-      playerName.value = storedSession.playerName
+      sessionId.value = storedSession.sessionId;
+      playerId.value = storedSession.playerId;
+      playerName.value = storedSession.playerName;
     }
   }
 
   // Clear error
   function clearError() {
-    lastError.value = null
+    lastError.value = null;
   }
 
   // Ping server to check availability
   async function pingServer(url: string): Promise<boolean> {
-    clearError()
-    connectionStatus.value = 'connecting'
+    clearError();
+    connectionStatus.value = "connecting";
 
     try {
-      const response = await api.pingServer(url)
+      const response = await api.pingServer(url);
 
       if (response.success && response.data) {
-        serverUrl.value = url
-        serverName.value = response.data.serverName
-        serverVersion.value = response.data.version
-        connectionStatus.value = 'connected'
-        api.setServerUrl(url)
-        return true
+        serverUrl.value = url;
+        serverName.value = response.data.serverName;
+        serverVersion.value = response.data.version;
+        connectionStatus.value = "connected";
+        api.setServerUrl(url);
+        return true;
       } else {
-        lastError.value = response.error || 'Сервер недоступен'
-        connectionStatus.value = 'error'
-        return false
+        lastError.value = response.error || "Сервер недоступен";
+        connectionStatus.value = "error";
+        return false;
       }
     } catch {
-      lastError.value = 'Не удалось подключиться к серверу'
-      connectionStatus.value = 'error'
-      return false
+      lastError.value = "Не удалось подключиться к серверу";
+      connectionStatus.value = "error";
+      return false;
     }
   }
 
   // Check if name is available
-  async function checkNameAvailable(name: string): Promise<{ available: boolean; reason?: string }> {
-    clearError()
+  async function checkNameAvailable(
+    name: string,
+  ): Promise<{ available: boolean; reason?: string }> {
+    clearError();
 
     if (!serverUrl.value) {
-      return { available: false, reason: 'Сервер не подключен' }
+      return { available: false, reason: "Сервер не подключен" };
     }
 
     try {
-      const response = await api.checkName(serverUrl.value, name)
+      const response = await api.checkName(serverUrl.value, name);
 
       if (response.success && response.data) {
         return {
           available: response.data.available,
           reason: response.data.reason,
-        }
+        };
       }
 
-      return { available: false, reason: response.error || 'Ошибка проверки имени' }
+      return {
+        available: false,
+        reason: response.error || "Ошибка проверки имени",
+      };
     } catch {
-      return { available: false, reason: 'Ошибка соединения' }
+      return { available: false, reason: "Ошибка соединения" };
     }
   }
 
   // Join server with name
   async function joinServerWithName(name: string): Promise<boolean> {
-    clearError()
+    clearError();
 
     if (!serverUrl.value) {
-      lastError.value = 'Сервер не подключен'
-      return false
+      lastError.value = "Сервер не подключен";
+      return false;
     }
 
     try {
       // First check name availability
-      const nameCheck = await checkNameAvailable(name)
+      const nameCheck = await checkNameAvailable(name);
       if (!nameCheck.available) {
-        lastError.value = nameCheck.reason || 'Имя недоступно'
-        return false
+        lastError.value = nameCheck.reason || "Имя недоступно";
+        return false;
       }
 
       // Join server
-      const response = await api.joinServer(serverUrl.value, name)
+      const response = await api.joinServer(serverUrl.value, name);
 
       if (response.success && response.data) {
-        sessionId.value = response.data.sessionId
-        playerId.value = response.data.playerId
-        playerName.value = name
-        isAuthenticated.value = true
+        sessionId.value = response.data.sessionId;
+        playerId.value = response.data.playerId;
+        playerName.value = name;
+        isAuthenticated.value = true;
 
         // Connect WebSocket
-        connectWebSocket()
+        connectWebSocket();
 
-        return true
+        return true;
       }
 
-      lastError.value = response.error || 'Ошибка подключения'
-      return false
+      lastError.value = response.error || "Ошибка подключения";
+      return false;
     } catch {
-      lastError.value = 'Ошибка соединения'
-      return false
+      lastError.value = "Ошибка соединения";
+      return false;
     }
   }
 
   // WebSocket connection
   function connectWebSocket() {
-    if (!serverUrl.value || !sessionId.value) return
+    if (!serverUrl.value || !sessionId.value) return;
 
-    wsService.connect(serverUrl.value, sessionId.value)
+    wsService.connect(serverUrl.value, sessionId.value);
 
     // Handle room updates
-    wsService.on('room_updated', (data) => {
-      const event = data as RoomUpdatedEvent
+    wsService.on("room_updated", (data) => {
+      const event = data as RoomUpdatedEvent;
       if (currentRoom.value && event.room.id === currentRoom.value.id) {
-        currentRoom.value = event.room
+        currentRoom.value = event.room;
       }
-    })
+    });
 
     // Handle player joined
-    wsService.on('player_joined', (data) => {
-      const event = data as PlayerJoinedEvent
-      if (currentRoom.value && !currentRoom.value.players.find(p => p.id === event.player.id)) {
-        currentRoom.value.players.push(event.player)
+    wsService.on("player_joined", (data) => {
+      const event = data as PlayerJoinedEvent;
+      if (
+        currentRoom.value &&
+        !currentRoom.value.players.find((p) => p.id === event.player.id)
+      ) {
+        currentRoom.value.players.push(event.player);
       }
-    })
+    });
 
     // Handle player left
-    wsService.on('player_left', (data) => {
-      const event = data as PlayerLeftEvent
+    wsService.on("player_left", (data) => {
+      const event = data as PlayerLeftEvent;
       if (currentRoom.value) {
-        currentRoom.value.players = currentRoom.value.players.filter(p => p.id !== event.playerId)
+        currentRoom.value.players = currentRoom.value.players.filter(
+          (p) => p.id !== event.playerId,
+        );
         if (event.newHostId) {
-          currentRoom.value.hostId = event.newHostId
-          const newHost = currentRoom.value.players.find(p => p.id === event.newHostId)
+          currentRoom.value.hostId = event.newHostId;
+          const newHost = currentRoom.value.players.find(
+            (p) => p.id === event.newHostId,
+          );
           if (newHost) {
-            newHost.isHost = true
+            newHost.isHost = true;
           }
         }
       }
-    })
+    });
 
     // Handle rematch vote
-    wsService.on('rematch_vote', (data) => {
-      const event = data as RematchVoteEvent
-      rematchState.value = event.rematchState
-    })
+    wsService.on("rematch_vote", (data) => {
+      const event = data as RematchVoteEvent;
+      rematchState.value = event.rematchState;
+    });
 
     // Handle rematch cancelled
-    wsService.on('rematch_cancelled', (_data) => {
-      rematchState.value = null
-    })
+    wsService.on("rematch_cancelled", (_data) => {
+      rematchState.value = null;
+    });
+
+    // Handle game started
+    wsService.on("game_started", (data) => {
+      const event = data as GameStartedEvent;
+      const game = useGameStore();
+
+      // Get my hand from the hands object
+      const myHand = event.hands[playerId.value] || [];
+
+      game.initOnlineGame({
+        gameId: event.gameId,
+        deckSeed: event.deckSeed,
+        selectedBoardType: (currentRoom.value?.boardType || "classic") as BoardType,
+        serverPlayers: event.players,
+        serverTeams: event.teams,
+        firstPlayerId: event.firstPlayerId,
+        myHand,
+        myPlayerId: playerId.value,
+      });
+
+      currentGameId.value = event.gameId;
+    });
+
+    // Handle turn made
+    wsService.on("turn_made", (data) => {
+      const event = data as TurnMadeEvent;
+      const game = useGameStore();
+
+      game.applyOnlineTurn({
+        playerId: event.playerId,
+        cardPlayed: event.cardPlayed,
+        row: event.row,
+        col: event.col,
+        chipPlaced: event.chipPlaced,
+        newSequences: event.newSequences,
+        nextPlayerId: event.nextPlayerId,
+      });
+
+      // If it was my turn, draw a new card
+      if (event.playerId === playerId.value) {
+        game.drawNewCardForOnline();
+      }
+    });
+
+    // Handle game finished
+    wsService.on("game_finished", (data) => {
+      const event = data as GameFinishedEvent;
+      const game = useGameStore();
+
+      game.applyOnlineGameFinished({
+        winnerId: event.winnerId,
+        winnerName: event.winnerName,
+        winningTeamColor: event.winningTeamColor,
+      });
+    });
   }
 
   function disconnectWebSocket() {
-    wsService.disconnect()
+    wsService.disconnect();
   }
 
   // Leave server
   async function leaveServer() {
-    disconnectWebSocket()
+    disconnectWebSocket();
     if (serverUrl.value) {
-      await api.leaveServer(serverUrl.value)
+      await api.leaveServer(serverUrl.value);
     }
-    sessionId.value = ''
-    playerId.value = ''
-    playerName.value = ''
-    isAuthenticated.value = false
-    currentRoom.value = null
-    currentGameId.value = null
-    rooms.value = []
+    sessionId.value = "";
+    playerId.value = "";
+    playerName.value = "";
+    isAuthenticated.value = false;
+    currentRoom.value = null;
+    currentGameId.value = null;
+    rooms.value = [];
   }
 
   // Load rooms list
   async function loadRooms(): Promise<boolean> {
-    clearError()
+    clearError();
 
     if (!serverUrl.value) {
-      lastError.value = 'Сервер не подключен'
-      return false
+      lastError.value = "Сервер не подключен";
+      return false;
     }
 
-    isLoadingRooms.value = true
+    isLoadingRooms.value = true;
 
     try {
-      const response = await api.getRooms(serverUrl.value)
+      const response = await api.getRooms(serverUrl.value);
 
       if (response.success && response.data) {
-        rooms.value = response.data.rooms
-        return true
+        rooms.value = response.data.rooms;
+        return true;
       }
 
-      lastError.value = response.error || 'Ошибка загрузки комнат'
-      return false
+      lastError.value = response.error || "Ошибка загрузки комнат";
+      return false;
     } catch {
-      lastError.value = 'Ошибка соединения'
-      return false
+      lastError.value = "Ошибка соединения";
+      return false;
     } finally {
-      isLoadingRooms.value = false
+      isLoadingRooms.value = false;
     }
   }
 
@@ -286,193 +359,222 @@ export const useOnlineStore = defineStore('online', () => {
     boardType: BoardType,
     password?: string,
   ): Promise<boolean> {
-    clearError()
+    clearError();
 
     if (!serverUrl.value) {
-      lastError.value = 'Сервер не подключен'
-      return false
+      lastError.value = "Сервер не подключен";
+      return false;
     }
 
     try {
-      const response = await api.createRoom(serverUrl.value, name, type, boardType, password)
+      const response = await api.createRoom(
+        serverUrl.value,
+        name,
+        type,
+        boardType,
+        password,
+      );
 
       if (response.success && response.data) {
-        currentRoom.value = response.data.room
-        return true
+        currentRoom.value = response.data.room;
+        return true;
       }
 
-      lastError.value = response.error || 'Ошибка создания комнаты'
-      return false
+      lastError.value = response.error || "Ошибка создания комнаты";
+      return false;
     } catch {
-      lastError.value = 'Ошибка соединения'
-      return false
+      lastError.value = "Ошибка соединения";
+      return false;
     }
   }
 
   // Join room
   async function joinRoom(roomId: string, password?: string): Promise<boolean> {
-    clearError()
+    clearError();
 
     if (!serverUrl.value) {
-      lastError.value = 'Сервер не подключен'
-      return false
+      lastError.value = "Сервер не подключен";
+      return false;
     }
 
     try {
-      const response = await api.joinRoom(serverUrl.value, roomId, password)
+      const response = await api.joinRoom(serverUrl.value, roomId, password);
 
       if (response.success && response.data) {
-        currentRoom.value = response.data.room
-        return true
+        currentRoom.value = response.data.room;
+        return true;
       }
 
-      lastError.value = response.error || 'Ошибка входа в комнату'
-      return false
+      lastError.value = response.error || "Ошибка входа в комнату";
+      return false;
     } catch {
-      lastError.value = 'Ошибка соединения'
-      return false
+      lastError.value = "Ошибка соединения";
+      return false;
     }
   }
 
   // Leave room
   async function leaveRoom(): Promise<boolean> {
     if (!serverUrl.value || !currentRoom.value) {
-      return true
+      return true;
     }
 
     try {
-      await api.leaveRoom(serverUrl.value, currentRoom.value.id)
-      currentRoom.value = null
-      currentGameId.value = null
-      return true
+      await api.leaveRoom(serverUrl.value, currentRoom.value.id);
+      currentRoom.value = null;
+      currentGameId.value = null;
+      return true;
     } catch {
-      lastError.value = 'Ошибка выхода из комнаты'
-      return false
+      lastError.value = "Ошибка выхода из комнаты";
+      return false;
     }
   }
 
   // Set ready status
   async function setReady(ready: boolean): Promise<boolean> {
     if (!serverUrl.value || !currentRoom.value) {
-      return false
+      return false;
     }
 
     try {
-      const response = await api.setReady(serverUrl.value, currentRoom.value.id, ready)
+      const response = await api.setReady(
+        serverUrl.value,
+        currentRoom.value.id,
+        ready,
+      );
 
       if (response.success) {
         // Update local state (will be replaced by WebSocket update)
-        const player = currentRoom.value.players.find((p) => p.id === playerId.value)
+        const player = currentRoom.value.players.find(
+          (p) => p.id === playerId.value,
+        );
         if (player) {
-          player.isReady = ready
+          player.isReady = ready;
         }
-        return true
+        return true;
       }
 
-      return false
+      return false;
     } catch {
-      return false
+      return false;
     }
   }
 
   // Change team
   async function changeTeam(team: 1 | 2): Promise<boolean> {
     if (!serverUrl.value || !currentRoom.value) {
-      return false
+      return false;
     }
 
     try {
-      const response = await api.changeTeam(serverUrl.value, currentRoom.value.id, team)
+      const response = await api.changeTeam(
+        serverUrl.value,
+        currentRoom.value.id,
+        team,
+      );
 
       if (response.success) {
         // Update local state
-        const player = currentRoom.value.players.find((p) => p.id === playerId.value)
+        const player = currentRoom.value.players.find(
+          (p) => p.id === playerId.value,
+        );
         if (player) {
-          player.team = team
+          player.team = team;
         }
-        return true
+        return true;
       }
 
-      return false
+      return false;
     } catch {
-      return false
+      return false;
     }
   }
 
   // Start game (host only)
   async function startGame(): Promise<{ success: boolean; aiCount: number }> {
-    clearError()
+    clearError();
 
     if (!serverUrl.value || !currentRoom.value || !isHost.value) {
-      lastError.value = 'Невозможно начать игру'
-      return { success: false, aiCount: 0 }
+      lastError.value = "Невозможно начать игру";
+      return { success: false, aiCount: 0 };
     }
 
     try {
-      const response = await api.startGame(serverUrl.value, currentRoom.value.id)
+      const response = await api.startGame(
+        serverUrl.value,
+        currentRoom.value.id,
+      );
 
       if (response.success && response.data) {
-        currentGameId.value = response.data.gameId
+        currentGameId.value = response.data.gameId;
         if (currentRoom.value) {
-          currentRoom.value.status = 'playing'
+          currentRoom.value.status = "playing";
         }
         return {
           success: true,
           aiCount: response.data.aiCount,
-        }
+        };
       }
 
-      lastError.value = response.error || 'Ошибка запуска игры'
-      return { success: false, aiCount: 0 }
+      lastError.value = response.error || "Ошибка запуска игры";
+      return { success: false, aiCount: 0 };
     } catch {
-      lastError.value = 'Ошибка соединения'
-      return { success: false, aiCount: 0 }
+      lastError.value = "Ошибка соединения";
+      return { success: false, aiCount: 0 };
     }
   }
 
   // Vote for rematch
   async function voteRematch(vote: boolean): Promise<boolean> {
     if (!serverUrl.value || !currentGameId.value) {
-      return false
+      return false;
     }
 
     try {
-      const response = await api.voteRematch(serverUrl.value, currentGameId.value, vote)
+      const response = await api.voteRematch(
+        serverUrl.value,
+        currentGameId.value,
+        vote,
+      );
 
       if (response.success && response.data) {
-        rematchState.value = response.data.rematchState
-        return true
+        rematchState.value = response.data.rematchState;
+        return true;
       }
 
-      return false
+      return false;
     } catch {
-      return false
+      return false;
     }
   }
 
   // Cancel rematch / go to lobby
   async function cancelRematch(): Promise<boolean> {
     if (!serverUrl.value || !currentGameId.value) {
-      return false
+      return false;
     }
 
     try {
-      await api.cancelRematch(serverUrl.value, currentGameId.value)
-      rematchState.value = null
-      currentGameId.value = null
+      await api.cancelRematch(serverUrl.value, currentGameId.value);
+      rematchState.value = null;
+      currentGameId.value = null;
       if (currentRoom.value) {
-        currentRoom.value.status = 'waiting'
+        currentRoom.value.status = "waiting";
       }
-      return true
+      return true;
     } catch {
-      return false
+      return false;
     }
   }
 
   // Send game turn
-  async function sendTurn(cardIndex: number, row: number, col: number): Promise<boolean> {
+  async function sendTurn(
+    cardIndex: number,
+    row: number,
+    col: number,
+  ): Promise<boolean> {
     if (!serverUrl.value || !currentGameId.value) {
-      return false
+      return false;
     }
 
     try {
@@ -482,34 +584,34 @@ export const useOnlineStore = defineStore('online', () => {
         cardIndex,
         row,
         col,
-      )
-      return response.success
+      );
+      return response.success;
     } catch {
-      return false
+      return false;
     }
   }
 
   // Reset store
   function reset() {
-    disconnectWebSocket()
-    connectionStatus.value = 'disconnected'
-    serverName.value = ''
-    serverVersion.value = ''
-    sessionId.value = ''
-    playerId.value = ''
-    playerName.value = ''
-    isAuthenticated.value = false
-    rooms.value = []
-    currentRoom.value = null
-    currentGameId.value = null
-    rematchState.value = null
-    lastError.value = null
+    disconnectWebSocket();
+    connectionStatus.value = "disconnected";
+    serverName.value = "";
+    serverVersion.value = "";
+    sessionId.value = "";
+    playerId.value = "";
+    playerName.value = "";
+    isAuthenticated.value = false;
+    rooms.value = [];
+    currentRoom.value = null;
+    currentGameId.value = null;
+    rematchState.value = null;
+    lastError.value = null;
   }
 
   // Disconnect from server
   function disconnect() {
-    disconnectWebSocket()
-    reset()
+    disconnectWebSocket();
+    reset();
     // Keep serverUrl for reconnection
   }
 
@@ -557,5 +659,5 @@ export const useOnlineStore = defineStore('online', () => {
     sendTurn,
     reset,
     disconnect,
-  }
-})
+  };
+});

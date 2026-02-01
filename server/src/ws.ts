@@ -12,6 +12,7 @@ interface ExtendedWebSocket extends WebSocket {
 class WebSocketManager {
   private wss: WebSocketServer | null = null
   private connections = new Map<string, ExtendedWebSocket>() // playerId -> WebSocket
+  private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>() // playerId -> timeout
 
   init(server: Server): void {
     this.wss = new WebSocketServer({ server, path: '/ws' })
@@ -34,6 +35,13 @@ class WebSocketManager {
       ws.sessionId = sessionId
       ws.playerId = session.playerId
       ws.isAlive = true
+
+      // Cancel any pending disconnect timer (player reconnected)
+      const existingTimer = this.disconnectTimers.get(session.playerId)
+      if (existingTimer) {
+        clearTimeout(existingTimer)
+        this.disconnectTimers.delete(session.playerId)
+      }
 
       // Store connection
       this.connections.set(session.playerId, ws)
@@ -60,6 +68,7 @@ class WebSocketManager {
       ws.on('close', () => {
         if (ws.playerId) {
           this.connections.delete(ws.playerId)
+          this.schedulePlayerRemoval(ws.playerId)
         }
       })
 
@@ -136,6 +145,85 @@ class WebSocketManager {
   isPlayerConnected(playerId: string): boolean {
     const ws = this.connections.get(playerId)
     return ws?.readyState === WebSocket.OPEN
+  }
+
+  // Schedule player removal from rooms after disconnect timeout
+  private schedulePlayerRemoval(playerId: string): void {
+    // Don't schedule if already scheduled
+    if (this.disconnectTimers.has(playerId)) return
+
+    const timer = setTimeout(() => {
+      this.disconnectTimers.delete(playerId)
+
+      // Check if player reconnected
+      if (this.isPlayerConnected(playerId)) return
+
+      // Find player's session to get their room
+      const session = storage.getSessionByPlayerId(playerId)
+      if (!session?.currentRoomId) return
+
+      const room = storage.getRoom(session.currentRoomId)
+      if (!room) return
+
+      // Remove player from room
+      const playerIndex = room.players.findIndex(p => p.playerId === playerId)
+      if (playerIndex === -1) return
+
+      const wasHost = room.players[playerIndex]!.isHost
+      room.players.splice(playerIndex, 1)
+
+      // Clear room from session
+      session.currentRoomId = undefined
+      storage.updateSession(session)
+
+      if (room.players.length === 0) {
+        storage.deleteRoom(room.id)
+        return
+      }
+
+      // Transfer host if needed
+      if (wasHost) {
+        const newHost = room.players.find(p => !p.isAI)
+        if (newHost) {
+          newHost.isHost = true
+          room.hostId = newHost.playerId
+        }
+      }
+
+      storage.updateRoom(room)
+
+      // Notify remaining players
+      this.sendToRoom(room.id, 'player_left', {
+        playerId,
+        reason: 'disconnect',
+        newHostId: room.hostId,
+      })
+      this.sendToRoom(room.id, 'room_updated', { room: this.sanitizeRoom(room) })
+    }, 10000) // 10 seconds
+
+    this.disconnectTimers.set(playerId, timer)
+  }
+
+  // Helper to sanitize room for client
+  private sanitizeRoom(room: { id: string; name: string; type: string; boardType: string; password?: string; status: string; players: Array<{ playerId: string; playerName: string; isHost: boolean; isReady: boolean; isAI: boolean; team: 1 | 2 }>; maxPlayers: number; hostId: string }): object {
+    return {
+      id: room.id,
+      name: room.name,
+      type: room.type,
+      boardType: room.boardType,
+      hasPassword: !!room.password,
+      status: room.status,
+      players: room.players.map(p => ({
+        id: p.playerId,
+        name: p.playerName,
+        isHost: p.isHost,
+        isReady: p.isReady,
+        isAI: p.isAI,
+        team: p.team,
+      })),
+      maxPlayers: room.maxPlayers,
+      hostId: room.hostId,
+    }
   }
 }
 

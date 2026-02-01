@@ -1,145 +1,148 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useOnlineStore } from '@/stores/online'
-import type { RoomType } from '@/types/online'
-import type { BoardType } from '@/types'
-import { getBoardTypeLabel, getBoardTypeDescription } from '@/data/board'
+import { ref, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { useOnlineStore } from "@/stores/online";
+import type { RoomType } from "@/types/online";
+import type { BoardType } from "@/types";
+import { getBoardTypeLabel, getBoardTypeDescription } from "@/data/board";
 
-const router = useRouter()
-const online = useOnlineStore()
+const router = useRouter();
+const online = useOnlineStore();
 
 // UI state
-const showCreateRoom = ref(false)
-const newRoomName = ref('')
-const newRoomType = ref<RoomType>('1v1')
-const newBoardType = ref<BoardType>('classic')
-const newRoomPassword = ref('')
-const isCreating = ref(false)
-const joinPasswordInput = ref('')
-const joiningRoomId = ref<string | null>(null)
-const showPasswordDialog = ref(false)
-const passwordRoomId = ref<string | null>(null)
+const showCreateRoom = ref(false);
+const newRoomName = ref("");
+const newRoomType = ref<RoomType>("1v1");
+const newBoardType = ref<BoardType>("classic");
+const newRoomPassword = ref("");
+const isCreating = ref(false);
+const joinPasswordInput = ref("");
+const joiningRoomId = ref<string | null>(null);
+const showPasswordDialog = ref(false);
+const passwordRoomId = ref<string | null>(null);
 
-const boardTypes: BoardType[] = ['classic', 'alternative', 'advanced']
+const boardTypes: BoardType[] = ["classic", "alternative", "advanced"];
 
 // Refresh interval
-let refreshInterval: ReturnType<typeof setInterval> | null = null
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
   // Check if authenticated
   if (!online.isAuthenticated) {
-    router.push('/')
-    return
+    router.push("/");
+    return;
   }
 
   // Load rooms
-  await online.loadRooms()
+  await online.loadRooms();
 
   // Auto-refresh rooms every 5 seconds
   refreshInterval = setInterval(() => {
-    online.loadRooms()
-  }, 5000)
-})
+    online.loadRooms();
+  }, 5000);
+});
 
 onUnmounted(() => {
   if (refreshInterval) {
-    clearInterval(refreshInterval)
+    clearInterval(refreshInterval);
   }
-})
+});
 
 function handleBackToMenu() {
-  online.leaveServer()
-  router.push('/')
+  online.leaveServer();
+  router.push("/");
 }
 
 function openCreateRoom() {
-  newRoomName.value = `Комната ${online.playerName}`
-  newRoomType.value = '1v1'
-  newBoardType.value = 'classic'
-  newRoomPassword.value = ''
-  showCreateRoom.value = true
+  newRoomName.value = `Комната ${online.playerName}`;
+  newRoomType.value = "1v1";
+  newBoardType.value = "classic";
+  newRoomPassword.value = "";
+  showCreateRoom.value = true;
 }
 
 function closeCreateRoom() {
-  showCreateRoom.value = false
+  showCreateRoom.value = false;
 }
 
 async function handleCreateRoom() {
-  if (!newRoomName.value.trim()) return
+  if (!newRoomName.value.trim()) return;
 
-  isCreating.value = true
+  isCreating.value = true;
 
   const success = await online.createRoom(
     newRoomName.value.trim(),
     newRoomType.value,
     newBoardType.value,
     newRoomPassword.value || undefined,
-  )
+  );
 
-  isCreating.value = false
+  isCreating.value = false;
 
   if (success) {
-    router.push('/room')
+    router.push("/room");
   }
 }
 
 async function handleJoinRoom(roomId: string, hasPassword: boolean) {
   if (hasPassword) {
-    passwordRoomId.value = roomId
-    joinPasswordInput.value = ''
-    showPasswordDialog.value = true
-    return
+    passwordRoomId.value = roomId;
+    joinPasswordInput.value = "";
+    showPasswordDialog.value = true;
+    return;
   }
 
-  joiningRoomId.value = roomId
-  const success = await online.joinRoom(roomId)
-  joiningRoomId.value = null
+  joiningRoomId.value = roomId;
+  const success = await online.joinRoom(roomId);
+  joiningRoomId.value = null;
 
   if (success) {
-    router.push('/room')
+    router.push("/room");
   }
 }
 
 async function handleJoinWithPassword() {
-  if (!passwordRoomId.value) return
+  if (!passwordRoomId.value) return;
 
-  joiningRoomId.value = passwordRoomId.value
-  showPasswordDialog.value = false
+  joiningRoomId.value = passwordRoomId.value;
+  showPasswordDialog.value = false;
 
-  const success = await online.joinRoom(passwordRoomId.value, joinPasswordInput.value)
-  joiningRoomId.value = null
-  passwordRoomId.value = null
+  const success = await online.joinRoom(
+    passwordRoomId.value,
+    joinPasswordInput.value,
+  );
+  joiningRoomId.value = null;
+  passwordRoomId.value = null;
 
   if (success) {
-    router.push('/room')
+    router.push("/room");
   }
 }
 
 function closePasswordDialog() {
-  showPasswordDialog.value = false
-  passwordRoomId.value = null
-  joinPasswordInput.value = ''
+  showPasswordDialog.value = false;
+  passwordRoomId.value = null;
+  joinPasswordInput.value = "";
 }
 
 async function refreshRooms() {
-  await online.loadRooms()
+  await online.loadRooms();
 }
 
 function getRoomTypeLabel(type: RoomType): string {
-  return type === '1v1' ? '1 на 1' : '2 на 2'
+  return type === "1v1" ? "1 на 1" : "2 на 2";
 }
 
 function getStatusLabel(status: string): string {
   switch (status) {
-    case 'waiting':
-      return 'Ожидание'
-    case 'playing':
-      return 'В игре'
-    case 'finished':
-      return 'Завершена'
+    case "waiting":
+      return "Ожидание";
+    case "playing":
+      return "В игре";
+    case "finished":
+      return "Завершена";
     default:
-      return status
+      return status;
   }
 }
 </script>
@@ -170,7 +173,11 @@ function getStatusLabel(status: string): string {
       <div class="rooms-header">
         <h2>Комнаты</h2>
         <div class="rooms-actions">
-          <button class="refresh-btn" @click="refreshRooms" :disabled="online.isLoadingRooms">
+          <button
+            class="refresh-btn"
+            @click="refreshRooms"
+            :disabled="online.isLoadingRooms"
+          >
             &#8635;
           </button>
           <button class="create-btn" @click="openCreateRoom">
@@ -181,7 +188,10 @@ function getStatusLabel(status: string): string {
 
       <!-- Room list -->
       <div class="rooms-list" :class="{ loading: online.isLoadingRooms }">
-        <div v-if="online.rooms.length === 0 && !online.isLoadingRooms" class="no-rooms">
+        <div
+          v-if="online.rooms.length === 0 && !online.isLoadingRooms"
+          class="no-rooms"
+        >
           Нет доступных комнат. Создайте свою!
         </div>
 
@@ -194,13 +204,19 @@ function getStatusLabel(status: string): string {
           <div class="room-main">
             <div class="room-name">
               {{ room.name }}
-              <span v-if="room.hasPassword" class="lock-icon" title="Защищено паролем">
+              <span
+                v-if="room.hasPassword"
+                class="lock-icon"
+                title="Защищено паролем"
+              >
                 &#128274;
               </span>
             </div>
             <div class="room-info">
               <span class="room-type">{{ getRoomTypeLabel(room.type) }}</span>
-              <span class="room-board">{{ getBoardTypeLabel(room.boardType) }}</span>
+              <span class="room-board">{{
+                getBoardTypeLabel(room.boardType)
+              }}</span>
               <span class="room-host">Хост: {{ room.hostName }}</span>
             </div>
           </div>
@@ -220,7 +236,7 @@ function getStatusLabel(status: string): string {
             :disabled="joiningRoomId === room.id"
             @click="handleJoinRoom(room.id, room.hasPassword)"
           >
-            {{ joiningRoomId === room.id ? '...' : 'Войти' }}
+            {{ joiningRoomId === room.id ? "..." : "Войти" }}
           </button>
           <span v-else class="join-disabled">В игре</span>
         </div>
@@ -228,7 +244,11 @@ function getStatusLabel(status: string): string {
     </main>
 
     <!-- Create Room Modal -->
-    <div v-if="showCreateRoom" class="modal-overlay" @click.self="closeCreateRoom">
+    <div
+      v-if="showCreateRoom"
+      class="modal-overlay"
+      @click.self="closeCreateRoom"
+    >
       <div class="modal-content">
         <h2>Создать комнату</h2>
 
@@ -266,11 +286,18 @@ function getStatusLabel(status: string): string {
             <button
               v-for="boardType in boardTypes"
               :key="boardType"
-              :class="['board-type-btn', { active: newBoardType === boardType }]"
+              :class="[
+                'board-type-btn',
+                { active: newBoardType === boardType },
+              ]"
               @click="newBoardType = boardType"
             >
-              <span class="board-type-name">{{ getBoardTypeLabel(boardType) }}</span>
-              <span class="board-type-desc">{{ getBoardTypeDescription(boardType) }}</span>
+              <span class="board-type-name">{{
+                getBoardTypeLabel(boardType)
+              }}</span>
+              <span class="board-type-desc">{{
+                getBoardTypeDescription(boardType)
+              }}</span>
             </button>
           </div>
         </div>
@@ -291,14 +318,18 @@ function getStatusLabel(status: string): string {
             :disabled="!newRoomName.trim() || isCreating"
             @click="handleCreateRoom"
           >
-            {{ isCreating ? 'Создание...' : 'Создать' }}
+            {{ isCreating ? "Создание..." : "Создать" }}
           </button>
         </div>
       </div>
     </div>
 
     <!-- Password Dialog -->
-    <div v-if="showPasswordDialog" class="modal-overlay" @click.self="closePasswordDialog">
+    <div
+      v-if="showPasswordDialog"
+      class="modal-overlay"
+      @click.self="closePasswordDialog"
+    >
       <div class="modal-content modal-small">
         <h2>Введите пароль</h2>
 
@@ -312,7 +343,9 @@ function getStatusLabel(status: string): string {
         </div>
 
         <div class="modal-actions">
-          <button class="cancel-btn" @click="closePasswordDialog">Отмена</button>
+          <button class="cancel-btn" @click="closePasswordDialog">
+            Отмена
+          </button>
           <button class="confirm-btn" @click="handleJoinWithPassword">
             Войти
           </button>

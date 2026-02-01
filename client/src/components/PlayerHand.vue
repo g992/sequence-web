@@ -1,33 +1,33 @@
 <script setup lang="ts">
-import { useGameStore } from '@/stores/game'
-import { isDeadCard } from '@/data/board'
-import CardDisplay from './CardDisplay.vue'
+import { useGameStore } from "@/stores/game";
+import { isDeadCard } from "@/data/board";
+import CardDisplay from "./CardDisplay.vue";
 
-const game = useGameStore()
+const game = useGameStore();
 
 function isCardDead(index: number): boolean {
-  const card = game.localHand[index]
-  if (!card || card.rank === 'J') return false
-  return isDeadCard(game.board, card)
+  const card = game.localHand[index];
+  if (!card || card.rank === "J") return false;
+  return isDeadCard(game.board, card);
 }
 
 function handleCardClick(index: number) {
   if (game.isMyTurn) {
-    game.selectCard(index)
+    game.selectCard(index);
   }
 }
 
 function handleDoubleClick(index: number) {
   if (game.isMyTurn && isCardDead(index)) {
-    game.discardDeadCard(index)
+    game.discardDeadCard(index);
   }
 }
 
 function isNewCard(index: number): boolean {
-  const card = game.localHand[index]
-  const animCard = game.newCardAnimation
-  if (!card || !animCard) return false
-  return card.suit === animCard.suit && card.rank === animCard.rank
+  const card = game.localHand[index];
+  const animCard = game.newCardAnimation;
+  if (!card || !animCard) return false;
+  return card.suit === animCard.suit && card.rank === animCard.rank;
 }
 </script>
 
@@ -51,7 +51,12 @@ function isNewCard(index: number): boolean {
         @dblclick="handleDoubleClick(index)"
       >
         <CardDisplay :card="card" size="large" />
-        <span v-if="isCardDead(index)" class="dead-badge" title="Двойной клик для сброса">X</span>
+        <span
+          v-if="isCardDead(index)"
+          class="dead-badge"
+          title="Двойной клик для сброса"
+          >X</span
+        >
       </div>
     </div>
   </div>
@@ -73,7 +78,9 @@ function isNewCard(index: number): boolean {
 .hand-card {
   position: relative;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   flex-shrink: 0;
   transform-origin: bottom center;
 }
@@ -89,7 +96,7 @@ function isNewCard(index: number): boolean {
 }
 
 .hand-card.selected::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -3px;
   border: 3px solid #f1c40f;

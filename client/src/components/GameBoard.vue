@@ -1,30 +1,30 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '@/stores/game'
-import BoardCell from './BoardCell.vue'
+import { computed } from "vue";
+import { useGameStore } from "@/stores/game";
+import BoardCell from "./BoardCell.vue";
 
-const game = useGameStore()
+const game = useGameStore();
 
 const playableCellsSet = computed(() => {
-  const set = new Set<string>()
+  const set = new Set<string>();
   for (const cell of game.playableCells) {
-    set.add(`${cell.row},${cell.col}`)
+    set.add(`${cell.row},${cell.col}`);
   }
-  return set
-})
+  return set;
+});
 
 function isCellPlayable(row: number, col: number): boolean {
-  return playableCellsSet.value.has(`${row},${col}`)
+  return playableCellsSet.value.has(`${row},${col}`);
 }
 
 function isLastOpponentMove(row: number, col: number): boolean {
-  if (!game.lastOpponentMove) return false
-  return game.lastOpponentMove.row === row && game.lastOpponentMove.col === col
+  if (!game.lastOpponentMove) return false;
+  return game.lastOpponentMove.row === row && game.lastOpponentMove.col === col;
 }
 
 function handleCellClick(row: number, col: number) {
   if (isCellPlayable(row, col)) {
-    game.playCard(row, col)
+    game.playCard(row, col);
   }
 }
 </script>
@@ -32,7 +32,11 @@ function handleCellClick(row: number, col: number) {
 <template>
   <div class="game-board-container">
     <div class="game-board">
-      <div v-for="(row, rowIndex) in game.board" :key="rowIndex" class="board-row">
+      <div
+        v-for="(row, rowIndex) in game.board"
+        :key="rowIndex"
+        class="board-row"
+      >
         <BoardCell
           v-for="(cell, colIndex) in row"
           :key="colIndex"

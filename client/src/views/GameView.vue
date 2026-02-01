@@ -1,127 +1,159 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useGameStore } from '@/stores/game'
-import { useOnlineStore } from '@/stores/online'
-import GameBoard from '@/components/GameBoard.vue'
-import PlayerHand from '@/components/PlayerHand.vue'
-import GameInfo from '@/components/GameInfo.vue'
-import CardDisplay from '@/components/CardDisplay.vue'
+import { ref, onMounted, computed, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { useGameStore } from "@/stores/game";
+import { useOnlineStore } from "@/stores/online";
+import GameBoard from "@/components/GameBoard.vue";
+import PlayerHand from "@/components/PlayerHand.vue";
+import GameInfo from "@/components/GameInfo.vue";
+import CardDisplay from "@/components/CardDisplay.vue";
 
-const router = useRouter()
-const game = useGameStore()
-const online = useOnlineStore()
+const router = useRouter();
+const game = useGameStore();
+const online = useOnlineStore();
 
 // Rematch state
-const rematchTimer = ref<number>(0)
-const hasVotedRematch = ref(false)
-let rematchInterval: ReturnType<typeof setInterval> | null = null
+const rematchTimer = ref<number>(0);
+const hasVotedRematch = ref(false);
+let rematchInterval: ReturnType<typeof setInterval> | null = null;
 
 // Check if this is an online game
-const isOnlineGame = computed(() => online.currentGameId !== null)
+const isOnlineGame = computed(() => online.currentGameId !== null);
+
+// Loading state for online games
+const isWaitingForGameState = ref(false);
 
 onMounted(() => {
-  if (game.phase === 'lobby' && game.players.length === 0) {
-    router.push('/')
+  // For online games, wait for game state to be initialized via WebSocket
+  if (online.currentGameId !== null) {
+    if (game.phase === "lobby" || game.players.length === 0) {
+      isWaitingForGameState.value = true;
+
+      // Wait for game state to be initialized (max 5 seconds)
+      let attempts = 0;
+      const checkInterval = setInterval(() => {
+        attempts++;
+        if (game.phase === "playing" && game.players.length > 0) {
+          isWaitingForGameState.value = false;
+          clearInterval(checkInterval);
+        } else if (attempts >= 50) {
+          // 5 seconds passed, give up and go back to room
+          clearInterval(checkInterval);
+          router.push("/room");
+        }
+      }, 100);
+    }
+  } else {
+    // Offline game: redirect to home if not initialized
+    if (game.phase === "lobby" && game.players.length === 0) {
+      router.push("/");
+    }
   }
-})
+});
 
 onUnmounted(() => {
   if (rematchInterval) {
-    clearInterval(rematchInterval)
+    clearInterval(rematchInterval);
   }
-})
+});
 
 function handleBackToMenu() {
   if (isOnlineGame.value) {
-    online.leaveRoom()
-    router.push('/lobby')
+    online.leaveRoom();
+    router.push("/lobby");
   } else {
-    game.resetGame()
-    router.push('/')
+    game.resetGame();
+    router.push("/");
   }
 }
 
 function handlePlayAgain() {
-  const difficulty = game.aiDifficulty
-  game.resetGame()
+  const difficulty = game.aiDifficulty;
+  game.resetGame();
   if (difficulty) {
-    game.initAIGame(difficulty)
+    game.initAIGame(difficulty);
   }
-  game.startGame()
+  game.startGame();
 }
 
 // Online rematch functions
 async function handleVoteRematch() {
-  if (!isOnlineGame.value) return
+  if (!isOnlineGame.value) return;
 
-  hasVotedRematch.value = true
-  await online.voteRematch(true)
+  hasVotedRematch.value = true;
+  await online.voteRematch(true);
 
   // Start countdown timer
   if (online.rematchState) {
-    startRematchTimer(online.rematchState.deadline)
+    startRematchTimer(online.rematchState.deadline);
   }
 }
 
 async function handleGoToLobby() {
   if (!isOnlineGame.value) {
-    game.resetGame()
-    router.push('/')
-    return
+    game.resetGame();
+    router.push("/");
+    return;
   }
 
-  await online.cancelRematch()
-  router.push('/lobby')
+  await online.cancelRematch();
+  router.push("/lobby");
 }
 
 function startRematchTimer(deadline: number) {
   if (rematchInterval) {
-    clearInterval(rematchInterval)
+    clearInterval(rematchInterval);
   }
 
   const updateTimer = () => {
-    const remaining = Math.max(0, Math.floor((deadline - Date.now()) / 1000))
-    rematchTimer.value = remaining
+    const remaining = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+    rematchTimer.value = remaining;
 
     if (remaining <= 0) {
       if (rematchInterval) {
-        clearInterval(rematchInterval)
-        rematchInterval = null
+        clearInterval(rematchInterval);
+        rematchInterval = null;
       }
       // Timer expired, go back to lobby
-      handleGoToLobby()
+      handleGoToLobby();
     }
-  }
+  };
 
-  updateTimer()
-  rematchInterval = setInterval(updateTimer, 1000)
+  updateTimer();
+  rematchInterval = setInterval(updateTimer, 1000);
 }
 
 // Computed
 const rematchVoteCount = computed(() => {
-  if (!online.rematchState) return 0
-  return online.rematchState.votes.filter((v) => v.vote).length
-})
+  if (!online.rematchState) return 0;
+  return online.rematchState.votes.filter((v) => v.vote).length;
+});
 
 const rematchRequired = computed(() => {
-  return online.rematchState?.requiredVotes || 2
-})
+  return online.rematchState?.requiredVotes || 2;
+});
 
 const difficultyLabels: Record<string, string> = {
-  easy: 'Легкий',
-  medium: 'Средний',
-  hard: 'Сложный',
-}
+  easy: "Легкий",
+  medium: "Средний",
+  hard: "Сложный",
+};
 
 const winnerName = computed(() => {
-  const winner = game.players.find((p) => p.id === game.winnerId)
-  return winner?.name || ''
-})
+  const winner = game.players.find((p) => p.id === game.winnerId);
+  return winner?.name || "";
+});
 </script>
 
 <template>
   <div class="game-view">
+    <!-- Loading state for online games -->
+    <div v-if="isWaitingForGameState" class="game-loading">
+      <div class="loading-spinner"></div>
+      <span>Загрузка игры...</span>
+    </div>
+
+    <template v-else>
     <header class="game-header">
       <button class="back-btn" @click="handleBackToMenu" title="Меню">
         &#8592;
@@ -152,14 +184,21 @@ const winnerName = computed(() => {
           <span class="winner-text">{{ winnerName }} победил!</span>
 
           <!-- Offline: simple play again -->
-          <button v-if="!isOnlineGame" class="play-again-btn" @click="handlePlayAgain">
+          <button
+            v-if="!isOnlineGame"
+            class="play-again-btn"
+            @click="handlePlayAgain"
+          >
             Играть снова
           </button>
 
           <!-- Online: rematch voting -->
           <div v-else class="rematch-section">
             <!-- Rematch timer and progress -->
-            <div v-if="hasVotedRematch || online.rematchState?.active" class="rematch-status">
+            <div
+              v-if="hasVotedRematch || online.rematchState?.active"
+              class="rematch-status"
+            >
               <div class="rematch-votes">
                 Голосов: {{ rematchVoteCount }}/{{ rematchRequired }}
               </div>
@@ -177,11 +216,7 @@ const winnerName = computed(() => {
               >
                 Реванш
               </button>
-              <button
-                v-else
-                class="rematch-btn voted"
-                disabled
-              >
+              <button v-else class="rematch-btn voted" disabled>
                 Ожидание...
               </button>
 
@@ -212,6 +247,7 @@ const winnerName = computed(() => {
 
       <PlayerHand />
     </footer>
+    </template>
   </div>
 </template>
 
@@ -223,6 +259,26 @@ const winnerName = computed(() => {
   flex-direction: column;
   background: #0f0f1a;
   overflow: hidden;
+}
+
+.game-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #95a5a6;
+  font-size: 16px;
+}
+
+.game-loading .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #2c3e50;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 .game-header {

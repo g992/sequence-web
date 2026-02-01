@@ -1,48 +1,48 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { BoardCell } from '@/types'
-import CardDisplay from './CardDisplay.vue'
+import { computed } from "vue";
+import type { BoardCell } from "@/types";
+import CardDisplay from "./CardDisplay.vue";
 
 const props = defineProps<{
-  cell: BoardCell
-  isPlayable: boolean
-  isHighlighted: boolean
-}>()
+  cell: BoardCell;
+  isPlayable: boolean;
+  isHighlighted: boolean;
+}>();
 
 const emit = defineEmits<{
-  click: [row: number, col: number]
-}>()
+  click: [row: number, col: number];
+}>();
 
 const chipColors: Record<string, string> = {
-  green: '#27ae60',
-  blue: '#2980b9',
-  red: '#c0392b',
-}
+  green: "#27ae60",
+  blue: "#2980b9",
+  red: "#c0392b",
+};
 
 const suitSymbols: Record<string, string> = {
-  spades: '\u2660',
-  hearts: '\u2665',
-  diamonds: '\u2666',
-  clubs: '\u2663',
-}
+  spades: "\u2660",
+  hearts: "\u2665",
+  diamonds: "\u2666",
+  clubs: "\u2663",
+};
 
 const suitColors: Record<string, string> = {
-  spades: '#1a1a2e',
-  hearts: '#c0392b',
-  diamonds: '#c0392b',
-  clubs: '#1a1a2e',
-}
+  spades: "#1a1a2e",
+  hearts: "#c0392b",
+  diamonds: "#c0392b",
+  clubs: "#1a1a2e",
+};
 
 const cardInfo = computed(() => {
-  if (props.cell.card === 'CORNER') return null
-  const rank = props.cell.card.rank === 'T' ? '10' : props.cell.card.rank
-  const suit = suitSymbols[props.cell.card.suit]
-  const color = suitColors[props.cell.card.suit]
-  return { rank, suit, color }
-})
+  if (props.cell.card === "CORNER") return null;
+  const rank = props.cell.card.rank === "T" ? "10" : props.cell.card.rank;
+  const suit = suitSymbols[props.cell.card.suit];
+  const color = suitColors[props.cell.card.suit];
+  return { rank, suit, color };
+});
 
 function handleClick() {
-  emit('click', props.cell.row, props.cell.col)
+  emit("click", props.cell.row, props.cell.col);
 }
 </script>
 
@@ -66,7 +66,9 @@ function handleClick() {
       class="chip"
       :style="{ backgroundColor: chipColors[cell.chip.color] }"
     >
-      <span v-if="cell.chip.partOfSequence" class="sequence-mark">&#10003;</span>
+      <span v-if="cell.chip.partOfSequence" class="sequence-mark"
+        >&#10003;</span
+      >
     </div>
 
     <!-- Card info in corner when covered by chip -->
@@ -100,7 +102,7 @@ function handleClick() {
 }
 
 .board-cell.playable::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border: 2px solid #f1c40f;
@@ -111,7 +113,7 @@ function handleClick() {
 }
 
 .board-cell.highlighted::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: -2px;
   border: 2px solid #e74c3c;
@@ -160,7 +162,13 @@ function handleClick() {
   width: calc(var(--cell-size, 36px) * 0.55);
   height: calc(var(--cell-size, 36px) * 0.55);
   border-radius: 50%;
-  background: linear-gradient(135deg, #27ae60 0%, #27ae60 50%, #2980b9 50%, #2980b9 100%);
+  background: linear-gradient(
+    135deg,
+    #27ae60 0%,
+    #27ae60 50%,
+    #2980b9 50%,
+    #2980b9 100%
+  );
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   z-index: 3;
 }
@@ -195,7 +203,8 @@ function handleClick() {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -204,7 +213,8 @@ function handleClick() {
 }
 
 @keyframes highlight-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     box-shadow: 0 0 8px #e74c3c;
   }
