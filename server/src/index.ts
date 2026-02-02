@@ -760,6 +760,7 @@ function createGame(room: Room): Game {
     shuffledDeck,
     turnHistory: [],
     createdAt: Date.now(),
+    lastActivityAt: Date.now(),
   }
 
   storage.createGame(game)
@@ -858,6 +859,9 @@ function executeTurn(game: Game, playerId: string, cardIndex: number, row: numbe
     game.currentTurnPlayerId = game.players[nextIndex]!.playerId
   }
 
+  // Update last activity time
+  game.lastActivityAt = Date.now()
+
   storage.updateGame(game)
 
   // Notify players
@@ -933,4 +937,6 @@ server.listen(PORT, () => {
 setInterval(() => {
   storage.cleanupSessions()
   storage.cleanupEmptyRooms()
+  // Cleanup games with no connected players after 360 seconds of inactivity
+  storage.cleanupInactiveGames(360000, (playerId) => wsManager.isPlayerConnected(playerId))
 }, 60000)

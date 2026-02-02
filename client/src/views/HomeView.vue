@@ -45,32 +45,22 @@ onMounted(async () => {
   }
 
   // Auto-restore session if we have saved credentials
-  if (online.serverUrl && online.sessionId && online.playerName) {
+  if (online.serverUrl && online.playerName) {
     isAutoRestoring.value = true;
+    const savedName = online.playerName;
+    const savedUrl = online.serverUrl;
 
     // Try to ping server
-    const pingSuccess = await online.pingServer(online.serverUrl);
+    const pingSuccess = await online.pingServer(savedUrl);
 
     if (pingSuccess) {
-      // Server is available, try to connect WebSocket and go to lobby
-      online.isAuthenticated = true;
+      // Server is available, try to verify session or re-authenticate
+      const restored = await online.tryRestoreOrReconnect(savedName);
 
-      // Connect WebSocket
-      await new Promise<void>((resolve) => {
-        const wsUrl = online.serverUrl;
-        const wsSessionId = online.sessionId;
-        if (wsUrl && wsSessionId) {
-          import("@/services/websocket").then(({ wsService }) => {
-            wsService.connect(wsUrl, wsSessionId);
-            resolve();
-          });
-        } else {
-          resolve();
-        }
-      });
-
-      // Navigate to lobby
-      router.push("/lobby");
+      if (restored) {
+        // Navigate to lobby
+        router.push("/lobby");
+      }
     }
 
     isAutoRestoring.value = false;

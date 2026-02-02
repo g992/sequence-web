@@ -193,6 +193,58 @@ export const useOnlineStore = defineStore("online", () => {
     }
   }
 
+  // Try to restore existing session or reconnect with same credentials
+  async function tryRestoreOrReconnect(savedName: string): Promise<boolean> {
+    if (!serverUrl.value) return false;
+
+    // First, try to verify existing session by loading rooms
+    if (sessionId.value) {
+      const response = await api.getRooms(serverUrl.value);
+
+      if (response.success) {
+        // Session is still valid
+        isAuthenticated.value = true;
+        connectWebSocket();
+        return true;
+      }
+
+      // Session invalid - clear it and try to re-authenticate
+      api.clearSession();
+      sessionId.value = "";
+      playerId.value = "";
+    }
+
+    // Try to re-authenticate with the same name
+    const joinResponse = await api.joinServer(serverUrl.value, savedName);
+
+    if (joinResponse.success && joinResponse.data) {
+      sessionId.value = joinResponse.data.sessionId;
+      playerId.value = joinResponse.data.playerId;
+      playerName.value = savedName;
+      isAuthenticated.value = true;
+      connectWebSocket();
+      return true;
+    }
+
+    // If name is taken (maybe by stale session), try with a suffix
+    if (joinResponse.error?.includes("taken")) {
+      // Wait a moment and try again - the old session should be cleaned up
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const retryResponse = await api.joinServer(serverUrl.value, savedName);
+
+      if (retryResponse.success && retryResponse.data) {
+        sessionId.value = retryResponse.data.sessionId;
+        playerId.value = retryResponse.data.playerId;
+        playerName.value = savedName;
+        isAuthenticated.value = true;
+        connectWebSocket();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   // WebSocket connection
   function connectWebSocket() {
     if (!serverUrl.value || !sessionId.value) return;
@@ -646,6 +698,7 @@ export const useOnlineStore = defineStore("online", () => {
     pingServer,
     checkNameAvailable,
     joinServerWithName,
+    tryRestoreOrReconnect,
     leaveServer,
     loadRooms,
     createRoom,

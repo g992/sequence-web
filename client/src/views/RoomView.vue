@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useOnlineStore } from "@/stores/online";
 import { useGameStore } from "@/stores/game";
@@ -25,6 +25,16 @@ onMounted(() => {
 onUnmounted(() => {
   // Cleanup if needed
 });
+
+// Watch for game starting (for non-host players)
+watch(
+  () => game.phase,
+  (newPhase) => {
+    if (newPhase === "playing" && online.currentGameId) {
+      router.push("/game");
+    }
+  }
+);
 
 const room = computed(() => online.currentRoom);
 

@@ -117,6 +117,7 @@ export interface Game {
   winnerId?: string
   createdAt: number
   finishedAt?: number
+  lastActivityAt: number  // Track last player activity for timeout
 }
 
 // Rematch state
