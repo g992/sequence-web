@@ -7,7 +7,7 @@ import type {
   RoomType,
   RematchState,
 } from "@/types/online";
-import type { BoardType } from "@/types";
+import type { BoardType, BoardCell } from "@/types";
 import * as api from "@/services/api";
 import {
   wsService,
@@ -194,18 +194,46 @@ export const useOnlineStore = defineStore("online", () => {
   }
 
   // Try to restore existing session or reconnect with same credentials
-  async function tryRestoreOrReconnect(savedName: string): Promise<boolean> {
-    if (!serverUrl.value) return false;
+  // Returns: { success: boolean, hasActiveGame: boolean }
+  async function tryRestoreOrReconnect(
+    savedName: string,
+  ): Promise<{ success: boolean; hasActiveGame: boolean }> {
+    if (!serverUrl.value) return { success: false, hasActiveGame: false };
 
-    // First, try to verify existing session by loading rooms
+    // First, try to verify existing session by checking status
     if (sessionId.value) {
-      const response = await api.getRooms(serverUrl.value);
+      const statusResponse = await api.getSessionStatus(serverUrl.value);
 
-      if (response.success) {
+      if (statusResponse.success && statusResponse.data) {
         // Session is still valid
         isAuthenticated.value = true;
         connectWebSocket();
-        return true;
+
+        // Check if there's an active game to restore
+        if (statusResponse.data.gameState) {
+          const gameState = statusResponse.data.gameState;
+          const game = useGameStore();
+
+          currentGameId.value = gameState.gameId;
+
+          // Restore game state
+          game.restoreOnlineGame({
+            gameId: gameState.gameId,
+            deckSeed: gameState.deckSeed,
+            boardType: gameState.boardType,
+            players: gameState.players,
+            teams: gameState.teams,
+            board: gameState.board as BoardCell[][],
+            sequences: gameState.sequences,
+            currentTurnPlayerId: gameState.currentTurnPlayerId,
+            myHand: gameState.myHand,
+            myPlayerId: gameState.myPlayerId,
+          });
+
+          return { success: true, hasActiveGame: true };
+        }
+
+        return { success: true, hasActiveGame: false };
       }
 
       // Session invalid - clear it and try to re-authenticate
@@ -223,7 +251,7 @@ export const useOnlineStore = defineStore("online", () => {
       playerName.value = savedName;
       isAuthenticated.value = true;
       connectWebSocket();
-      return true;
+      return { success: true, hasActiveGame: false };
     }
 
     // If name is taken (maybe by stale session), try with a suffix
@@ -238,11 +266,11 @@ export const useOnlineStore = defineStore("online", () => {
         playerName.value = savedName;
         isAuthenticated.value = true;
         connectWebSocket();
-        return true;
+        return { success: true, hasActiveGame: false };
       }
     }
 
-    return false;
+    return { success: false, hasActiveGame: false };
   }
 
   // WebSocket connection

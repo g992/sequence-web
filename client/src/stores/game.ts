@@ -88,6 +88,10 @@ export const useGameStore = defineStore("game", () => {
   const aiTurnCount = ref<number>(0);
   const isAIThinking = ref<boolean>(false);
 
+  // Online game state
+  const isOnlineGame = ref<boolean>(false);
+  const onlineGameId = ref<string | null>(null);
+
   // History for UI
   const lastPlayedCards = ref<PlayedCard[]>([]);
   const lastOpponentMove = ref<{ row: number; col: number } | null>(null);
@@ -551,6 +555,8 @@ export const useGameStore = defineStore("game", () => {
     lastPlayedCards.value = [];
     lastOpponentMove.value = null;
     newCardAnimation.value = null;
+    isOnlineGame.value = false;
+    onlineGameId.value = null;
     clearSavedGame();
   }
 
@@ -582,6 +588,10 @@ export const useGameStore = defineStore("game", () => {
     lastPlayedCards.value = [];
     lastOpponentMove.value = null;
     aiDifficulty.value = null; // Not an AI game
+
+    // Set online game flag
+    isOnlineGame.value = true;
+    onlineGameId.value = data.gameId;
 
     // Set deck
     deckSeed.value = data.deckSeed;
@@ -628,6 +638,100 @@ export const useGameStore = defineStore("game", () => {
     // Calculate deck cursor based on hand size
     const handSize = getHandSize(data.serverPlayers.length);
     deckCursor.value = handSize * data.serverPlayers.length;
+
+    selectedCardIndex.value = null;
+  }
+
+  // Restore game state from server (for reconnection)
+  function restoreOnlineGame(data: {
+    gameId: string;
+    deckSeed: number;
+    boardType: string;
+    players: Array<{
+      id: string;
+      name: string;
+      teamColor: string;
+      isAI: boolean;
+    }>;
+    teams: Array<{
+      color: string;
+      playerIds: string[];
+    }>;
+    board: BoardCell[][];
+    sequences: Array<{
+      teamColor: string;
+      cells: Array<{ row: number; col: number }>;
+    }>;
+    currentTurnPlayerId: string;
+    myHand: string[];
+    myPlayerId: string;
+  }) {
+    // Set state
+    phase.value = "playing";
+    boardType.value = data.boardType as BoardType;
+    winnerId.value = null;
+    lastPlayedCards.value = [];
+    lastOpponentMove.value = null;
+    aiDifficulty.value = null;
+
+    // Set online game flag
+    isOnlineGame.value = true;
+    onlineGameId.value = data.gameId;
+
+    // Set deck
+    deckSeed.value = data.deckSeed;
+    shuffledDeck.value = createShuffledDeck(data.deckSeed);
+
+    // Set local player
+    localPlayerId.value = data.myPlayerId;
+
+    // Set players
+    players.value = data.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      teamColor: p.teamColor as TeamColor,
+      isHost: false,
+      connected: true,
+    }));
+
+    // Set teams
+    teams.value = data.teams.map((t) => ({
+      color: t.color as TeamColor,
+      playerIds: t.playerIds,
+    }));
+
+    // Restore board state from server
+    board.value = data.board;
+
+    // Restore sequences
+    sequences.value = data.sequences.map((s) => ({
+      teamColor: s.teamColor as TeamColor,
+      cells: s.cells,
+    }));
+
+    // Set current turn
+    currentTurnPlayerId.value = data.currentTurnPlayerId;
+
+    // Parse hand strings to Card objects
+    hands.value = {};
+    hands.value[data.myPlayerId] = data.myHand.map((cardStr) => {
+      const rank = cardStr.slice(0, -1);
+      const suitChar = cardStr.slice(-1).toLowerCase();
+      const suitMap: Record<string, string> = {
+        s: "spades",
+        h: "hearts",
+        d: "diamonds",
+        c: "clubs",
+      };
+      return {
+        rank: rank as Card["rank"],
+        suit: suitMap[suitChar] as Card["suit"],
+      };
+    });
+
+    // Calculate deck cursor
+    const handSize = getHandSize(data.players.length);
+    deckCursor.value = handSize * data.players.length;
 
     selectedCardIndex.value = null;
   }
@@ -768,6 +872,8 @@ export const useGameStore = defineStore("game", () => {
     lastPlayedCards,
     lastOpponentMove,
     newCardAnimation,
+    isOnlineGame,
+    onlineGameId,
 
     // Computed
     currentPlayer,
@@ -793,6 +899,7 @@ export const useGameStore = defineStore("game", () => {
     clearSavedGame,
     changePlayerColor,
     initOnlineGame,
+    restoreOnlineGame,
     applyOnlineTurn,
     applyOnlineGameFinished,
     drawNewCardForOnline,

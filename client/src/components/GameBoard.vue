@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useGameStore } from "@/stores/game";
+import { useOnlineStore } from "@/stores/online";
 import BoardCell from "./BoardCell.vue";
 
 const game = useGameStore();
+const online = useOnlineStore();
 
 const playableCellsSet = computed(() => {
   const set = new Set<string>();
@@ -22,8 +24,28 @@ function isLastOpponentMove(row: number, col: number): boolean {
   return game.lastOpponentMove.row === row && game.lastOpponentMove.col === col;
 }
 
-function handleCellClick(row: number, col: number) {
-  if (isCellPlayable(row, col)) {
+async function handleCellClick(row: number, col: number) {
+  if (!isCellPlayable(row, col)) return;
+  if (game.selectedCardIndex === null) return;
+
+  // Check if this is an online game
+  if (game.isOnlineGame && online.currentGameId) {
+    // For online games, send turn to server
+    const cardIndex = game.selectedCardIndex;
+
+    // Remove card from hand immediately for UI feedback
+    game.removeCardFromHand(cardIndex);
+
+    // Send to server
+    const success = await online.sendTurn(cardIndex, row, col);
+
+    if (!success) {
+      // TODO: Handle error - maybe restore the card
+      console.error("Failed to send turn to server");
+    }
+    // Server will send turn_made event which updates the board
+  } else {
+    // Offline game - execute locally
     game.playCard(row, col);
   }
 }

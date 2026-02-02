@@ -155,6 +155,56 @@ app.post('/api/v1/leave', authMiddleware, (req, res) => {
   sendSuccess(res)
 })
 
+// Get current session status (for reconnection)
+app.get('/api/v1/session/status', authMiddleware, (req, res) => {
+  const session = (req as any).session
+
+  const result: {
+    currentRoomId: string | null
+    currentGameId: string | null
+    gameState: object | null
+  } = {
+    currentRoomId: session.currentRoomId || null,
+    currentGameId: session.currentGameId || null,
+    gameState: null,
+  }
+
+  // If player has an active game, return the game state
+  if (session.currentGameId) {
+    const game = storage.getGame(session.currentGameId)
+    if (game && game.status === 'active') {
+      const player = game.players.find(p => p.playerId === session.playerId)
+      if (player) {
+        const room = storage.getRoom(game.roomId)
+        result.gameState = {
+          gameId: game.id,
+          deckSeed: game.deckSeed,
+          boardType: game.boardType,
+          players: game.players.map(p => ({
+            id: p.playerId,
+            name: p.playerName,
+            teamColor: p.teamColor,
+            isAI: p.isAI,
+          })),
+          teams: game.teams,
+          board: game.board,
+          sequences: game.sequences,
+          currentTurnPlayerId: game.currentTurnPlayerId,
+          myHand: player.hand.map(cardToStringFn),
+          myPlayerId: session.playerId,
+          roomName: room?.name || 'Unknown',
+        }
+      }
+    } else {
+      // Game doesn't exist or is finished, clear from session
+      session.currentGameId = undefined
+      storage.updateSession(session)
+    }
+  }
+
+  sendSuccess(res, result)
+})
+
 // Get rooms list
 app.get('/api/v1/rooms', authMiddleware, (req, res) => {
   const rooms = storage.getAllRooms()

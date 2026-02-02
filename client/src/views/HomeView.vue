@@ -55,11 +55,16 @@ onMounted(async () => {
 
     if (pingSuccess) {
       // Server is available, try to verify session or re-authenticate
-      const restored = await online.tryRestoreOrReconnect(savedName);
+      const result = await online.tryRestoreOrReconnect(savedName);
 
-      if (restored) {
-        // Navigate to lobby
-        router.push("/lobby");
+      if (result.success) {
+        if (result.hasActiveGame) {
+          // Navigate directly to game
+          router.push("/game");
+        } else {
+          // Navigate to lobby
+          router.push("/lobby");
+        }
       }
     }
 

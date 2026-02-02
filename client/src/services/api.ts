@@ -166,6 +166,44 @@ export async function leaveServer(
 }
 
 /**
+ * Get session status (for reconnection)
+ */
+export interface SessionStatusResponse {
+  currentRoomId: string | null;
+  currentGameId: string | null;
+  gameState: {
+    gameId: string;
+    deckSeed: number;
+    boardType: string;
+    players: Array<{
+      id: string;
+      name: string;
+      teamColor: string;
+      isAI: boolean;
+    }>;
+    teams: Array<{
+      color: string;
+      playerIds: string[];
+    }>;
+    board: unknown[][];
+    sequences: Array<{
+      teamColor: string;
+      cells: Array<{ row: number; col: number }>;
+    }>;
+    currentTurnPlayerId: string;
+    myHand: string[];
+    myPlayerId: string;
+    roomName: string;
+  } | null;
+}
+
+export async function getSessionStatus(
+  serverUrl: string,
+): Promise<ApiResponse<SessionStatusResponse>> {
+  return apiFetch<SessionStatusResponse>(serverUrl, "/session/status");
+}
+
+/**
  * Get list of rooms
  */
 export async function getRooms(
